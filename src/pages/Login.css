@@ -1,0 +1,472 @@
+/* =========================================
+   VELZO LOGIN PAGE
+========================================= */
+
+.auth-page {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 18px;
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(14, 165, 233, 0.18),
+      transparent 35%
+    ),
+    linear-gradient(
+      135deg,
+      #eff6ff 0%,
+      #f8fafc 50%,
+      #e0f2fe 100%
+    );
+  box-sizing: border-box;
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.auth-card {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 38px 34px;
+  box-shadow:
+    0 24px 60px rgba(15, 23, 42, 0.12),
+    0 4px 16px rgba(15, 23, 42, 0.05);
+  box-sizing: border-box;
+}
+
+/* =========================================
+   TEXT COLORS
+========================================= */
+
+.auth-card h1,
+.auth-card h2,
+.auth-card h3,
+.auth-card p,
+.auth-card label,
+.auth-card span {
+  color: #172033;
+}
+
+.auth-card .auth-subtitle {
+  color: #64748b;
+}
+
+.auth-card .auth-error {
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.auth-card .auth-link,
+.auth-card button.auth-link {
+  color: #0284c7;
+}
+
+.auth-card .auth-divider span {
+  color: #94a3b8;
+}
+
+.auth-card .auth-footer-text {
+  color: #64748b;
+}
+
+/* =========================================
+   HEADER
+========================================= */
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.auth-logo {
+  width: 66px;
+  height: 66px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    #0284c7,
+    #0369a1
+  );
+  color: #ffffff;
+  font-size: 34px;
+  font-weight: 800;
+  box-shadow:
+    0 12px 24px rgba(2, 132, 199, 0.28);
+}
+
+.auth-header h1 {
+  margin: 0 0 10px;
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+}
+
+.auth-subtitle {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* =========================================
+   ALERTS
+========================================= */
+
+.auth-alert {
+  width: 100%;
+  padding: 13px 14px;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  box-sizing: border-box;
+}
+
+.auth-alert-error {
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.auth-alert-success {
+  color: #15803d;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+/* =========================================
+   FORM
+========================================= */
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.input-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 15px;
+  z-index: 1;
+  font-size: 18px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.input-wrapper input {
+  width: 100%;
+  min-height: 54px;
+  padding: 0 48px 0 48px;
+  border: 1px solid #cbd5e1;
+  border-radius: 13px;
+  background: #f8fafc;
+  color: #172033;
+  font-size: 15px;
+  outline: none;
+  box-sizing: border-box;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.input-wrapper input::placeholder {
+  color: #94a3b8;
+}
+
+.input-wrapper input:focus {
+  border-color: #0284c7;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 4px rgba(2, 132, 199, 0.12);
+}
+
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #64748b;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  background: #e2e8f0;
+}
+
+.password-toggle:focus-visible {
+  outline: 3px solid rgba(2, 132, 199, 0.3);
+  outline-offset: 2px;
+}
+
+/* =========================================
+   AUTH OPTIONS
+========================================= */
+
+.auth-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.remember-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.remember-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: #0284c7;
+  cursor: pointer;
+}
+
+.remember-option span {
+  font-size: 13px;
+  color: #475569;
+}
+
+.secure-login-text {
+  font-size: 12px;
+  color: #16a34a !important;
+  font-weight: 700;
+}
+
+/* =========================================
+   SUBMIT BUTTON
+========================================= */
+
+.auth-submit {
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 20px;
+  border: none;
+  border-radius: 13px;
+  background: linear-gradient(
+    135deg,
+    #0284c7,
+    #0369a1
+  );
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow:
+    0 10px 22px rgba(2, 132, 199, 0.24);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.auth-submit span {
+  color: #ffffff;
+}
+
+.auth-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    0 14px 28px rgba(2, 132, 199, 0.3);
+}
+
+.auth-submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.auth-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* =========================================
+   LOADING SPINNER
+========================================= */
+
+.auth-spinner {
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: auth-spin 0.8s linear infinite;
+}
+
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================================
+   DIVIDER
+========================================= */
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 28px 0 18px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: #e2e8f0;
+}
+
+.auth-divider span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  white-space: nowrap;
+}
+
+/* =========================================
+   MOBILE APP NOTE
+========================================= */
+
+.auth-mobile-note {
+  margin: 0;
+  color: #64748b !important;
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+/* =========================================
+   REGISTER BOX
+========================================= */
+
+.auth-register-box {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid #e2e8f0;
+  text-align: center;
+}
+
+.auth-footer-text {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.auth-link {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.5;
+  text-decoration: none;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+/* =========================================
+   FOOTER
+========================================= */
+
+.auth-footer {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* =========================================
+   RESPONSIVE DESIGN
+========================================= */
+
+@media (max-width: 520px) {
+  .auth-page {
+    padding: 20px 14px;
+  }
+
+  .auth-card {
+    padding: 30px 22px;
+    border-radius: 20px;
+  }
+
+  .auth-header h1 {
+    font-size: 26px;
+  }
+
+  .auth-logo {
+    width: 58px;
+    height: 58px;
+    font-size: 30px;
+  }
+
+  .input-wrapper input {
+    min-height: 52px;
+    font-size: 14px;
+  }
+
+  .auth-submit {
+    min-height: 52px;
+  }
+
+  .auth-divider span {
+    font-size: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-submit,
+  .input-wrapper input,
+  .auth-spinner {
+    animation: none;
+    transition: none;
+  }
+}

@@ -1,0 +1,242 @@
+/* =================================
+   VELZO RESPONSIVE STYLES
+================================= */
+
+/* Default visibility */
+.mobile-only {
+  display: none;
+}
+
+/* =================================
+   TABLETS
+================================= */
+
+@media (max-width: 1024px) {
+  .dashboard-grid,
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+
+  .tablet-full-width {
+    width: 100%;
+  }
+
+  .main-content {
+    padding: 24px;
+  }
+
+  .page-container {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* =================================
+   MOBILE DEVICES
+================================= */
+
+@media (max-width: 768px) {
+  .mobile-only {
+    display: block !important;
+  }
+
+  .hide-mobile {
+    display: none !important;
+  }
+
+  .page-title {
+    font-size: 24px;
+    line-height: 1.25;
+  }
+
+  .section-title {
+    font-size: 20px;
+    line-height: 1.3;
+  }
+
+  .dashboard-grid,
+  .stats-grid,
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .button-group {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .button-group button,
+  .button-group a {
+    width: 100%;
+  }
+
+  .profile-header {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .profile-actions {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .table-container,
+  .table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .responsive-table,
+  .data-table {
+    min-width: 650px;
+  }
+
+  .main-content {
+    padding: 18px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .page-header-actions {
+    width: 100%;
+  }
+
+  .page-header-actions button,
+  .page-header-actions a {
+    width: 100%;
+  }
+
+  .card,
+  .details-card,
+  .stat-card {
+    width: 100%;
+  }
+
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .action-buttons button,
+  .action-buttons a {
+    flex: 1 1 160px;
+  }
+}
+
+/* =================================
+   SMALL MOBILE DEVICES
+================================= */
+
+@media (max-width: 480px) {
+  .page-title {
+    font-size: 21px;
+  }
+
+  .section-title {
+    font-size: 18px;
+  }
+
+  .main-content {
+    padding: 14px;
+  }
+
+  .card,
+  .details-card,
+  .stat-card {
+    padding: 15px;
+    border-radius: 12px;
+  }
+
+  .form-group input,
+  .form-group textarea,
+  .form-group select {
+    padding: 11px;
+    font-size: 14px;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .danger-button {
+    width: 100%;
+  }
+
+  .action-buttons {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .action-buttons button,
+  .action-buttons a {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .button-group {
+    flex-direction: column;
+  }
+
+  .button-group button,
+  .button-group a {
+    width: 100%;
+  }
+
+  .profile-card {
+    padding: 18px;
+  }
+
+  .profile-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
+/* =================================
+   THEME TRANSITION
+================================= */
+
+html,
+body,
+#root,
+button,
+input,
+textarea,
+select,
+.card,
+.page-container,
+.main-content,
+.sidebar,
+header,
+nav {
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease;
+}

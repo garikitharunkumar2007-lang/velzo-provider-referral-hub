@@ -1,0 +1,333 @@
+/* =========================================
+   PAYMENT PROOF CONTAINER
+========================================= */
+
+.payment-proof-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  width: 100%;
+}
+
+/* =========================================
+   PAYMENT PROOF IMAGE
+========================================= */
+
+.payment-proof-image {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  max-height: 520px;
+  object-fit: contain;
+
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+
+  background: #f9fafb;
+  padding: 8px;
+}
+
+/* =========================================
+   TABLE ID
+========================================= */
+
+.table-id {
+  font-family: monospace;
+  font-size: 12px;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================
+   DETAILS GRID
+========================================= */
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+/* =========================================
+   FORM ELEMENTS - COMMON
+========================================= */
+
+input,
+textarea,
+select {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+
+  color: #111827;
+  background-color: #ffffff;
+
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+
+  padding: 12px 14px;
+
+  outline: none;
+
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/* =========================================
+   INPUT FOCUS - LIGHT MODE
+========================================= */
+
+input:focus,
+textarea:focus,
+select:focus {
+  color: #111827;
+  background-color: #ffffff;
+
+  border-color: #2563eb;
+
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* =========================================
+   PLACEHOLDER - LIGHT MODE
+========================================= */
+
+input::placeholder,
+textarea::placeholder {
+  color: #6b7280;
+  opacity: 1;
+}
+
+/* =========================================
+   SELECT OPTIONS
+========================================= */
+
+select option {
+  color: #111827;
+  background-color: #ffffff;
+}
+
+/* =========================================
+   DISABLED FORM ELEMENTS
+========================================= */
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  color: #6b7280;
+  background-color: #f3f4f6;
+
+  border-color: #d1d5db;
+
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+/* =========================================
+   DARK MODE
+========================================= */
+
+/*
+  Supports common dark-mode class names:
+
+  html.dark
+  body.dark
+  .dark
+*/
+
+html.dark input,
+html.dark textarea,
+html.dark select,
+body.dark input,
+body.dark textarea,
+body.dark select,
+.dark input,
+.dark textarea,
+.dark select {
+  color: #f8fafc;
+  background-color: #111c30;
+
+  border-color: #334155;
+}
+
+/* =========================================
+   DARK MODE - FOCUS
+========================================= */
+
+html.dark input:focus,
+html.dark textarea:focus,
+html.dark select:focus,
+body.dark input:focus,
+body.dark textarea:focus,
+body.dark select:focus,
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  color: #ffffff;
+  background-color: #111c30;
+
+  border-color: #60a5fa;
+
+  box-shadow:
+    0 0 0 3px rgba(96, 165, 250, 0.2);
+}
+
+/* =========================================
+   DARK MODE - PLACEHOLDER
+========================================= */
+
+html.dark input::placeholder,
+html.dark textarea::placeholder,
+body.dark input::placeholder,
+body.dark textarea::placeholder,
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+/* =========================================
+   DARK MODE - SELECT OPTIONS
+========================================= */
+
+html.dark select option,
+body.dark select option,
+.dark select option {
+  color: #f8fafc;
+  background-color: #111c30;
+}
+
+/* =========================================
+   DARK MODE - DISABLED
+========================================= */
+
+html.dark input:disabled,
+html.dark textarea:disabled,
+html.dark select:disabled,
+body.dark input:disabled,
+body.dark textarea:disabled,
+body.dark select:disabled,
+.dark input:disabled,
+.dark textarea:disabled,
+.dark select:disabled {
+  color: #64748b;
+  background-color: #1e293b;
+
+  border-color: #334155;
+
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+/* =========================================
+   CHECKBOXES AND RADIO BUTTONS
+========================================= */
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  max-width: none;
+  padding: 0;
+  accent-color: #2563eb;
+}
+
+/* =========================================
+   FILE INPUT
+========================================= */
+
+input[type="file"] {
+  padding: 10px;
+  cursor: pointer;
+}
+
+html.dark input[type="file"],
+body.dark input[type="file"],
+.dark input[type="file"] {
+  color: #e2e8f0;
+  background-color: #111c30;
+  border-color: #334155;
+}
+
+/* =========================================
+   BUTTON RESET
+========================================= */
+
+button {
+  font-family: inherit;
+}
+
+/* =========================================
+   TABLE RESPONSIVENESS
+========================================= */
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-wrapper table {
+  width: 100%;
+  min-width: 650px;
+  border-collapse: collapse;
+}
+
+/* =========================================
+   MOBILE RESPONSIVENESS
+========================================= */
+
+@media (max-width: 768px) {
+  .payment-proof-container {
+    gap: 12px;
+  }
+
+  .payment-proof-image {
+    width: 100%;
+    max-width: 100%;
+    max-height: 480px;
+  }
+
+  .details-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+    padding: 12px;
+  }
+
+  .table-id {
+    font-size: 11px;
+  }
+}
+
+/* =========================================
+   SMALL MOBILE DEVICES
+========================================= */
+
+@media (max-width: 480px) {
+  .payment-proof-image {
+    max-height: 380px;
+    padding: 6px;
+    border-radius: 10px;
+  }
+
+  input,
+  textarea,
+  select {
+    border-radius: 8px;
+  }
+}

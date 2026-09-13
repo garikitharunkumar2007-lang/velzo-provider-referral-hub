@@ -1,0 +1,543 @@
+/* =====================================
+   APPLICATION ROOT
+===================================== */
+
+#root {
+  min-height: 100vh;
+}
+
+/* =====================================
+   COMMON PAGE LAYOUT
+===================================== */
+
+.page-container {
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.page-header h1 {
+  margin-bottom: 6px;
+  font-size: 28px;
+  font-weight: 800;
+  color: #172033;
+}
+
+.page-header p {
+  margin: 0;
+  color: #68758a;
+  font-size: 14px;
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* =====================================
+   CARDS
+===================================== */
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e4e9f2;
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 5px 20px rgba(30, 41, 59, 0.04);
+}
+
+.card-title {
+  margin-bottom: 18px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #172033;
+}
+
+.card-subtitle {
+  color: #758196;
+  font-size: 13px;
+}
+
+/* =====================================
+   GRID SYSTEM
+===================================== */
+
+.grid {
+  display: grid;
+  gap: 20px;
+}
+
+.grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* =====================================
+   STAT CARDS
+===================================== */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(210px, 1fr)
+  );
+
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+
+  background: #ffffff;
+  border: 1px solid #e4e9f2;
+  border-radius: 16px;
+
+  padding: 20px;
+  box-shadow: 0 5px 20px rgba(30, 41, 59, 0.04);
+}
+
+.stat-card-icon {
+  width: 48px;
+  height: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 13px;
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.stat-card-label {
+  margin-bottom: 5px;
+  color: #758196;
+  font-size: 13px;
+}
+
+.stat-card-value {
+  margin: 0;
+  color: #172033;
+  font-size: 27px;
+  font-weight: 800;
+}
+
+/* =====================================
+   TABLES
+===================================== */
+
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+
+  background: #ffffff;
+  border: 1px solid #e4e9f2;
+  border-radius: 16px;
+}
+
+.data-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.data-table th {
+  padding: 15px 18px;
+  background: #f8faff;
+
+  color: #526078;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+  white-space: nowrap;
+
+  border-bottom: 1px solid #e4e9f2;
+}
+
+.data-table td {
+  padding: 15px 18px;
+  color: #354158;
+  font-size: 13px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.data-table tbody tr:hover {
+  background: #fafbff;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* =====================================
+   STATUS BADGES
+===================================== */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 6px 10px;
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-approved,
+.status-successful,
+.status-completed,
+.status-active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-rejected,
+.status-cancelled,
+.status-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-processing,
+.status-under-review,
+.status-verified {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.status-inactive {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* =====================================
+   SEARCH AND FILTERS
+===================================== */
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  margin-bottom: 18px;
+}
+
+.search-box {
+  width: 100%;
+  max-width: 360px;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* =====================================
+   ALERTS
+===================================== */
+
+.alert {
+  padding: 13px 16px;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.alert-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.alert-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.alert-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.alert-info {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* =====================================
+   EMPTY AND LOADING STATES
+===================================== */
+
+.loading-state,
+.empty-state {
+  min-height: 220px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  padding: 30px;
+  text-align: center;
+  color: #758196;
+}
+
+.empty-state h3 {
+  margin-bottom: 8px;
+  color: #354158;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* =====================================
+   DETAILS PAGE
+===================================== */
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.detail-item {
+  padding: 15px;
+  border: 1px solid #e4e9f2;
+  border-radius: 12px;
+  background: #fbfcff;
+}
+
+.detail-label {
+  margin-bottom: 6px;
+  color: #758196;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.detail-value {
+  color: #172033;
+  font-size: 14px;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+/* =====================================
+   LOGIN PAGE
+===================================== */
+
+.login-page {
+  min-height: 100vh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(99, 102, 241, 0.25),
+      transparent 35%
+    ),
+    linear-gradient(
+      135deg,
+      #111827,
+      #1e1b4b
+    );
+}
+
+.login-card {
+  width: 100%;
+  max-width: 440px;
+
+  padding: 35px;
+
+  background: #ffffff;
+  border-radius: 20px;
+
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.25);
+}
+
+.login-logo {
+  width: 70px;
+  height: 70px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  margin: 0 auto 20px;
+
+  border-radius: 20px;
+  background: #eef2ff;
+  color: #4f46e5;
+}
+
+.login-card h1 {
+  margin-bottom: 8px;
+  text-align: center;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.login-card p {
+  margin-bottom: 25px;
+  text-align: center;
+  color: #758196;
+  font-size: 14px;
+}
+
+.login-form-group {
+  margin-bottom: 18px;
+}
+
+.login-form-group label {
+  display: block;
+  margin-bottom: 7px;
+
+  color: #354158;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.login-submit {
+  width: 100%;
+  margin-top: 10px;
+}
+
+/* =====================================
+   MOBILE RESPONSIVE
+===================================== */
+
+@media (max-width: 1100px) {
+  .grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 20px 15px;
+  }
+
+  .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .page-header h1 {
+    font-size: 24px;
+  }
+
+  .page-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .grid-2,
+  .grid-3,
+  .grid-4,
+  .details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .stat-card {
+    padding: 15px;
+    gap: 10px;
+  }
+
+  .stat-card-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .stat-card-value {
+    font-size: 22px;
+  }
+
+  .stat-card-label {
+    font-size: 12px;
+  }
+
+  .filter-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .search-box {
+    max-width: 100%;
+  }
+
+  .filter-group {
+    flex-wrap: wrap;
+  }
+
+  .login-card {
+    padding: 26px 20px;
+  }
+}
+
+@media (max-width: 420px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .login-page {
+    padding: 15px;
+  }
+}
