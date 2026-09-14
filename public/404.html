@@ -3,24 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <title>VELZO</title>
 
     <script>
-      const redirectPath =
-        "/velzo-provider-referral-hub/" +
-        window.location.pathname
-          .replace("/velzo-provider-referral-hub/", "")
-          .replace(/^\/+/, "");
+      const pathSegmentsToKeep = 1;
 
-      const redirectQuery = window.location.search;
-      const redirectHash = window.location.hash;
+      const l = window.location;
+      const redirectUrl =
+        l.protocol +
+        "//" +
+        l.hostname +
+        (l.port ? ":" + l.port : "") +
+        l.pathname
+          .split("/")
+          .slice(0, 1 + pathSegmentsToKeep)
+          .join("/") +
+        "/?/" +
+        l.pathname
+          .split("/")
+          .slice(1 + pathSegmentsToKeep)
+          .join("/")
+          .replace(/&/g, "~and~") +
+        (l.search ? "&" + l.search.slice(1).replace(/&/g, "~and~") : "") +
+        l.hash;
 
-      sessionStorage.redirect =
-        redirectPath + redirectQuery + redirectHash;
-
-      window.location.replace(
-        "/velzo-provider-referral-hub/"
-      );
+      l.replace(redirectUrl);
     </script>
   </head>
 

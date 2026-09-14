@@ -1,31 +1,38 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <script>
-  (function () {
-    const redirect = sessionStorage.redirect;
-
-    delete sessionStorage.redirect;
-
-    if (
-      redirect &&
-      redirect !== window.location.pathname
-    ) {
-      window.history.replaceState(
-        null,
-        null,
-        "/velzo-provider-referral-hub/" + redirect
-      );
-    }
-  })();
-</script>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>velzo-provider-referral-hub</title>
+
+    <link rel="icon" type="image/svg+xml" href="/velzo-provider-referral-hub/favicon.svg" />
+
+    <title>VELZO Provider Referral Hub</title>
+
+    <script>
+      (function (l) {
+        if (l.search[1] === "/") {
+          const decoded = l.search
+            .slice(1)
+            .split("&")
+            .map(function (s) {
+              return s.replace(/~and~/g, "&");
+            })
+            .join("?");
+
+          window.history.replaceState(
+            null,
+            null,
+            l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      })(window.location);
+    </script>
   </head>
+
   <body>
     <div id="root"></div>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
