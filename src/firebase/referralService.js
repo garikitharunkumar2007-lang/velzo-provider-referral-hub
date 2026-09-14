@@ -70,6 +70,9 @@ export function getReferralRef(referralId) {
 
 export async function createReferral({
   referrerId = "",
+  referrerUid = "",
+  referrerUserId = "",
+  referrerEmail = "",
   referrerName = "",
   referrerPhone = "",
   providerName = "",
@@ -123,6 +126,9 @@ export async function createReferral({
 
   const referralData = {
     referrerId: cleanReferrerId,
+    referrerUid: cleanText(referrerUid),
+    referrerUserId: cleanText(referrerUserId),
+    referrerEmail: cleanText(referrerEmail),
     referrerName: cleanReferrerName,
     referrerPhone: cleanReferrerPhone,
 

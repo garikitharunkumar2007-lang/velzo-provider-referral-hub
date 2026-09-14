@@ -4,7 +4,6 @@ import {
   collection,
   onSnapshot,
   query,
-  where,
 } from "firebase/firestore";
 
 import {
@@ -13,6 +12,7 @@ import {
 } from "firebase/auth";
 
 import { db } from "../firebase/firebaseConfig";
+import { referralBelongsToUser } from "../utils/referralIdentity";
 
 import "./Earnings.css";
 
@@ -272,12 +272,14 @@ export default function Earnings() {
         unsubscribeReferrals = onSnapshot(
           earningsQuery,
           (snapshot) => {
-            const allReferrals = snapshot.docs.map(
-              (document) => ({
+            const allReferrals = snapshot.docs
+              .map((document) => ({
                 id: document.id,
                 ...document.data(),
-              })
-            );
+              }))
+              .filter((referral) =>
+                referralBelongsToUser(referral, user)
+              );
 
             const earnedReferrals = allReferrals
               .filter((referral) =>

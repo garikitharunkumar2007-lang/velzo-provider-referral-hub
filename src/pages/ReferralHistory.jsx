@@ -4,7 +4,6 @@ import {
   collection,
   onSnapshot,
   query,
-  where,
 } from "firebase/firestore";
 
 import {
@@ -13,6 +12,7 @@ import {
 } from "firebase/auth";
 
 import { db } from "../firebase/firebaseConfig";
+import { referralBelongsToUser } from "../utils/referralIdentity";
 
 import "./ReferralHistory.css";
 
@@ -285,22 +285,20 @@ export default function ReferralHistory() {
         setErrorMessage("");
 
         const referralsQuery = query(
-          collection(db, "referrals"),
-          where("referrerId", "==", user.uid)
+          collection(db, "referrals")
         );
 
         unsubscribeReferrals = onSnapshot(
           referralsQuery,
           (snapshot) => {
             const data = snapshot.docs
-              .map((document) => {
-                const referralData = document.data();
-
-                return {
-                  id: document.id,
-                  ...referralData,
-                };
-              })
+              .map((document) => ({
+                id: document.id,
+                ...document.data(),
+              }))
+              .filter((referral) =>
+                referralBelongsToUser(referral, user)
+              )
               .sort((a, b) => {
                 const getTime = (value) => {
                   if (!value) {

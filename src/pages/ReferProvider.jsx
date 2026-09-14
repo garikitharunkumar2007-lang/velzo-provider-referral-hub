@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { submitReferral } from "../firebase/referralService";
 import "./ReferProvider.css";
@@ -54,6 +55,7 @@ const PROVIDER_ROLES = [
 
 function ReferProvider() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
   const [error, setError] = useState("");
@@ -152,15 +154,34 @@ function ReferProvider() {
     try {
       setSubmitting(true);
 
-      /*
-       * Temporary referrer details.
-       * Replace these values later with the logged-in
-       * Firebase user's actual details.
-       */
+      const referrerId =
+        user?.uid ||
+        user?.id ||
+        user?.userId ||
+        user?.phone ||
+        user?.phoneNumber ||
+        user?.profile?.id ||
+        user?.userData?.id ||
+        "";
+
+      if (!referrerId) {
+        throw new Error(
+          "Your user identity is not available. Please logout and login again."
+        );
+      }
 
       const referralPayload = {
-        referrerId: "TEMP_REFERRER_ID",
-        referrerName: "Murali",
+        referrerId,
+        referrerUid: user?.uid || "",
+        referrerUserId: user?.id || user?.userId || "",
+        referrerName:
+          user?.displayName ||
+          user?.name ||
+          user?.fullName ||
+          "",
+        referrerPhone:
+          user?.phoneNumber || user?.phone || "",
+        referrerEmail: user?.email || "",
 
         providerName: formData.fullName.trim(),
         fullName: formData.fullName.trim(),
