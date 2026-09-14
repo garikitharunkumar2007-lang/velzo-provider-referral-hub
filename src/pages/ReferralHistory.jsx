@@ -23,7 +23,8 @@ function normalizeStatus(value) {
   const status = String(value || "pending")
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, "_");
+    .replace(/\s+/g, "_")
+    .replace(/-/g, "_");
 
   return status || "pending";
 }
@@ -54,7 +55,7 @@ function formatDate(value) {
   }
 
   try {
-    let date;
+    let date = null;
 
     if (typeof value?.toDate === "function") {
       date = value.toDate();
@@ -64,7 +65,10 @@ function formatDate(value) {
       date = new Date(value);
     } else if (typeof value === "number") {
       date = new Date(value);
-    } else if (value?.seconds) {
+    } else if (
+      typeof value === "object" &&
+      typeof value.seconds === "number"
+    ) {
       date = new Date(value.seconds * 1000);
     }
 
@@ -83,71 +87,136 @@ function formatDate(value) {
 }
 
 /* -------------------------------------------------
-   Get reward from all possible Firestore field names
+   Convert possible amount values into number
+------------------------------------------------- */
+function convertToNumber(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    const cleanedValue = value
+      .replace(/₹/g, "")
+      .replace(/,/g, "")
+      .trim();
+
+    if (!cleanedValue) {
+      return null;
+    }
+
+    const numericValue = Number(cleanedValue);
+
+    return Number.isNaN(numericValue)
+      ? null
+      : numericValue;
+  }
+
+  const numericValue = Number(value);
+
+  return Number.isNaN(numericValue)
+    ? null
+    : numericValue;
+}
+
+/* -------------------------------------------------
+   Get reward from all supported Firestore fields
 ------------------------------------------------- */
 function getReferralReward(referral) {
   const possibleRewardValues = [
     referral.reward,
     referral.rewardAmount,
+    referral.paymentAmount,
     referral.amount,
     referral.earnings,
     referral.rewardEarned,
     referral.referralReward,
+    referral.referralAmount,
   ];
 
-  const rewardValue = possibleRewardValues.find(
-    (value) =>
-      value !== undefined &&
-      value !== null &&
-      value !== ""
-  );
+  for (const value of possibleRewardValues) {
+    const numericValue = convertToNumber(value);
 
-  const numericReward = Number(rewardValue);
-
-  if (Number.isNaN(numericReward)) {
-    return 0;
+    if (numericValue !== null) {
+      return numericValue;
+    }
   }
 
-  return numericReward;
+  return 0;
 }
 
 /* -------------------------------------------------
-   Get provider name from possible field names
+   Get provider name safely
+
+   Important:
+   Do not use referral.name first because it may
+   contain the referrer's name.
 ------------------------------------------------- */
 function getProviderName(referral) {
   return (
     referral.providerName ||
-    referral.name ||
+    referral.referredProviderName ||
+    referral.providerFullName ||
     referral.provider?.name ||
-    referral.fullName ||
-    "—"
+    referral.provider?.fullName ||
+    referral.referredProvider?.name ||
+    referral.referredProvider?.fullName ||
+    referral.providerDetails?.name ||
+    referral.providerDetails?.fullName ||
+    referral.serviceProviderName ||
+    "Provider name unavailable"
   );
 }
 
 /* -------------------------------------------------
-   Get phone from possible field names
+   Get provider phone safely
 ------------------------------------------------- */
 function getProviderPhone(referral) {
   return (
+    referral.providerPhone ||
+    referral.providerPhoneNumber ||
+    referral.referredProviderPhone ||
+    referral.referredProviderMobile ||
+    referral.provider?.phone ||
+    referral.provider?.phoneNumber ||
+    referral.provider?.mobile ||
     referral.phone ||
     referral.phoneNumber ||
     referral.mobile ||
     referral.mobileNumber ||
-    "—"
+    "Phone unavailable"
   );
 }
 
 /* -------------------------------------------------
-   Get Union / Labour ID from possible field names
+   Get Union / Labour ID safely
 ------------------------------------------------- */
 function getUnionId(referral) {
   return (
+    referral.providerUnionId ||
+    referral.providerUnionID ||
+    referral.referredProviderUnionId ||
+    referral.referredProviderUnionID ||
     referral.unionId ||
     referral.unionID ||
     referral.labourId ||
     referral.labourID ||
     referral.unionLabourId ||
+    referral.provider?.unionId ||
+    referral.provider?.unionID ||
     "Not provided"
+  );
+}
+
+/* -------------------------------------------------
+   Get status from all possible fields
+------------------------------------------------- */
+function getReferralStatus(referral) {
+  return (
+    referral.status ||
+    referral.referralStatus ||
+    referral.paymentStatus ||
+    referral.rewardStatus ||
+    "pending"
   );
 }
 
@@ -167,16 +236,17 @@ export default function ReferralHistory() {
     const unsubscribeAuth = onAuthStateChanged(
       auth,
       (user) => {
-        // User is not logged in
+        if (unsubscribeReferrals) {
+          unsubscribeReferrals();
+          unsubscribeReferrals = null;
+        }
+
         if (!user) {
           setReferrals([]);
           setLoading(false);
-          setErrorMessage("Please login to view referral history.");
-
-          if (unsubscribeReferrals) {
-            unsubscribeReferrals();
-            unsubscribeReferrals = null;
-          }
+          setErrorMessage(
+            "Please login to view referral history."
+          );
 
           return;
         }
@@ -202,21 +272,34 @@ export default function ReferralHistory() {
                 };
               })
               .sort((a, b) => {
-                const aTime =
-                  a.createdAt?.toMillis?.() ||
-                  (a.createdAt?.seconds
-                    ? a.createdAt.seconds * 1000
-                    : new Date(a.createdAt || 0).getTime()) ||
-                  0;
+                const getTime = (value) => {
+                  if (!value) {
+                    return 0;
+                  }
 
-                const bTime =
-                  b.createdAt?.toMillis?.() ||
-                  (b.createdAt?.seconds
-                    ? b.createdAt.seconds * 1000
-                    : new Date(b.createdAt || 0).getTime()) ||
-                  0;
+                  if (
+                    typeof value?.toMillis === "function"
+                  ) {
+                    return value.toMillis();
+                  }
 
-                return bTime - aTime;
+                  if (
+                    typeof value?.seconds === "number"
+                  ) {
+                    return value.seconds * 1000;
+                  }
+
+                  const date = new Date(value);
+
+                  return Number.isNaN(date.getTime())
+                    ? 0
+                    : date.getTime();
+                };
+
+                return (
+                  getTime(b.createdAt) -
+                  getTime(a.createdAt)
+                );
               });
 
             setReferrals(data);
@@ -276,6 +359,7 @@ export default function ReferralHistory() {
             const providerName = getProviderName(referral);
             const phone = getProviderPhone(referral);
             const unionId = getUnionId(referral);
+            const status = getReferralStatus(referral);
 
             return (
               <div
@@ -291,19 +375,17 @@ export default function ReferralHistory() {
                     <h2>{providerName}</h2>
                   </div>
 
-                  <StatusBadge value={referral.status} />
+                  <StatusBadge value={status} />
                 </div>
 
                 <div className="history-details">
                   <div>
                     <span>Phone</span>
-
                     <strong>{phone}</strong>
                   </div>
 
                   <div>
                     <span>Union / Labour ID</span>
-
                     <strong>{unionId}</strong>
                   </div>
 

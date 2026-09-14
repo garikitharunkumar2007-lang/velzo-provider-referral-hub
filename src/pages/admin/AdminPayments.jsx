@@ -8,64 +8,49 @@ import StatusBadge from "../../components/StatusBadge";
 import { getCollection } from "../../firebase/firestoreConverters";
 
 /* -------------------------------------------------
-   Format currency
+   Format currency safely
 ------------------------------------------------- */
 function formatCurrency(value) {
-  const amount = Number(value || 0);
+  const numericValue = Number(
+    String(value ?? 0)
+      .replace(/₹/g, "")
+      .replace(/,/g, "")
+  );
 
-  return `₹${amount.toLocaleString("en-IN")}`;
+  return `₹${
+    Number.isNaN(numericValue)
+      ? "0"
+      : numericValue.toLocaleString("en-IN")
+  }`;
 }
 
 /* -------------------------------------------------
-   Convert Firebase Timestamp / Date / String
-------------------------------------------------- */
-function getDateValue(value) {
-  if (!value) {
-    return null;
-  }
-
-  try {
-    if (typeof value?.toDate === "function") {
-      return value.toDate();
-    }
-
-    if (value instanceof Date) {
-      return value;
-    }
-
-    if (typeof value === "object" && value.seconds) {
-      return new Date(value.seconds * 1000);
-    }
-
-    if (typeof value === "number") {
-      return new Date(value);
-    }
-
-    if (typeof value === "string") {
-      return new Date(value);
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/* -------------------------------------------------
-   Format date
+   Format date safely
 ------------------------------------------------- */
 function formatDate(value) {
-  const date = getDateValue(value);
-
-  if (!date || Number.isNaN(date.getTime())) {
+  if (!value) {
     return "—";
   }
 
-  return date.toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  try {
+    const date = value?.toDate
+      ? value.toDate()
+      : value?.seconds
+      ? new Date(value.seconds * 1000)
+      : new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "—";
+    }
+
+    return date.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "—";
+  }
 }
 
 /* -------------------------------------------------
@@ -75,174 +60,134 @@ function normalizeStatus(value) {
   return String(value || "pending")
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, "_");
+    .replace(/\s+/g, "_")
+    .replace(/-/g, "_");
 }
 
 /* -------------------------------------------------
-   Get payment amount from all possible fields
+   Convert amount safely
 ------------------------------------------------- */
-function getPaymentAmount(referral) {
+function getAmount(referral) {
   const possibleValues = [
     referral.paymentAmount,
+    referral.reward,
     referral.rewardAmount,
+    referral.amount,
+    referral.earnings,
     referral.rewardEarned,
     referral.referralReward,
-    referral.earnings,
-    referral.amount,
-    referral.reward,
+    referral.referralAmount,
   ];
 
-  const validValue = possibleValues.find(
+  for (const value of possibleValues) {
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+    ) {
+      const numericValue = Number(
+        String(value)
+          .replace(/₹/g, "")
+          .replace(/,/g, "")
+      );
+
+      if (!Number.isNaN(numericValue)) {
+        return numericValue;
+      }
+    }
+  }
+
+  return 0;
+}
+
+/* -------------------------------------------------
+   Get payment status
+------------------------------------------------- */
+function getPaymentStatus(referral) {
+  return (
+    referral.paymentStatus ||
+    referral.rewardStatus ||
+    (normalizeStatus(referral.status) === "paid"
+      ? "completed"
+      : "not_paid")
+  );
+}
+
+/* -------------------------------------------------
+   Check whether referral contains payment data
+------------------------------------------------- */
+function hasPaymentInformation(referral) {
+  return [
+    referral.paymentStatus,
+    referral.paymentAmount,
+    referral.paymentProofUrl,
+    referral.paymentId,
+    referral.rewardStatus,
+    referral.reward,
+    referral.rewardAmount,
+    referral.amount,
+    referral.earnings,
+    referral.rewardEarned,
+    referral.referralReward,
+  ].some(
     (value) =>
       value !== undefined &&
       value !== null &&
       value !== ""
   );
-
-  const numericValue = Number(validValue);
-
-  return Number.isNaN(numericValue)
-    ? 0
-    : numericValue;
 }
 
 /* -------------------------------------------------
-   Get payment status
-
-   Firebase currently has:
-   paymentStatus: completed
-   status: paid
-   rewardStatus: paid
-------------------------------------------------- */
-function getPaymentStatus(referral) {
-  const paymentStatus = normalizeStatus(
-    referral.paymentStatus
-  );
-
-  const status = normalizeStatus(
-    referral.status
-  );
-
-  const rewardStatus = normalizeStatus(
-    referral.rewardStatus
-  );
-
-  if (
-    paymentStatus === "completed" ||
-    paymentStatus === "complete" ||
-    paymentStatus === "paid"
-  ) {
-    return "completed";
-  }
-
-  if (
-    status === "paid" ||
-    status === "payment_completed"
-  ) {
-    return "completed";
-  }
-
-  if (
-    rewardStatus === "paid" ||
-    rewardStatus === "earned" ||
-    rewardStatus === "completed"
-  ) {
-    return "completed";
-  }
-
-  if (paymentStatus) {
-    return paymentStatus;
-  }
-
-  return "not_paid";
-}
-
-/* -------------------------------------------------
-   Get payment date
-------------------------------------------------- */
-function getPaymentDate(referral) {
-  return (
-    referral.paidAt ||
-    referral.paymentCompletedAt ||
-    referral.rewardPaidAt ||
-    referral.updatedAt ||
-    null
-  );
-}
-
-/* -------------------------------------------------
-   Check whether document is payment-related
-------------------------------------------------- */
-function isPaymentRecord(referral) {
-  return Boolean(
-    referral.paymentStatus ||
-      referral.paymentAmount !== undefined ||
-      referral.paymentProofUrl ||
-      referral.paymentProofPath ||
-      referral.paymentProof ||
-      referral.rewardStatus ||
-      referral.reward !== undefined ||
-      referral.paidAt
-  );
-}
-
-/* -------------------------------------------------
-   Admin Payments Component
+   Admin Payments
 ------------------------------------------------- */
 export default function AdminPayments() {
   const [payments, setPayments] = useState([]);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] =
-    useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  /* -------------------------------------------------
-     Load referral payments
-  ------------------------------------------------- */
   async function loadPayments() {
     try {
       setLoading(true);
       setError("");
 
-      const referrals = await getCollection(
-        "referrals"
-      );
+      const referrals = await getCollection("referrals");
 
       const referralPayments = referrals
         .filter((referral) =>
-          isPaymentRecord(referral)
+          hasPaymentInformation(referral)
         )
-        .map((referral) => {
-          const paymentAmount =
-            getPaymentAmount(referral);
+        .map((referral) => ({
+          ...referral,
 
-          const paymentStatus =
-            getPaymentStatus(referral);
+          paymentId:
+            referral.paymentId ||
+            `REF-PAY-${referral.id}`,
 
-          return {
-            ...referral,
+          paymentStatus: getPaymentStatus(referral),
 
-            paymentId:
-              referral.paymentId ||
-              `REF-PAY-${referral.id}`,
+          paymentAmount: getAmount(referral),
 
-            paymentStatus,
+          paymentMethod:
+            referral.paymentMethod ||
+            referral.method ||
+            "UPI",
 
-            paymentAmount,
-
-            paymentDate:
-              getPaymentDate(referral),
-          };
-        });
+          paidAt:
+            referral.paidAt ||
+            referral.paymentDate ||
+            referral.completedAt ||
+            null,
+        }));
 
       setPayments(referralPayments);
-    } catch (error) {
+    } catch (err) {
       console.error(
         "Failed to load referral payments:",
-        error
+        err
       );
 
       setError(
@@ -257,9 +202,6 @@ export default function AdminPayments() {
     loadPayments();
   }, []);
 
-  /* -------------------------------------------------
-     Filter payments
-  ------------------------------------------------- */
   const filteredPayments = useMemo(() => {
     const searchText = search
       .trim()
@@ -295,22 +237,14 @@ export default function AdminPayments() {
         payment.phone,
         payment.paymentMethod,
         payment.paymentStatus,
-        payment.status,
-        payment.rewardStatus,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
 
-      return searchableText.includes(
-        searchText
-      );
+      return searchableText.includes(searchText);
     });
-  }, [
-    payments,
-    search,
-    statusFilter,
-  ]);
+  }, [payments, search, statusFilter]);
 
   if (loading) {
     return (
@@ -326,8 +260,8 @@ export default function AdminPayments() {
             <h1>Referral Payments</h1>
 
             <p>
-              View referral rewards, payment status
-              and payment proofs.
+              View referral rewards, payment status and
+              payment proofs.
             </p>
           </div>
 
@@ -387,6 +321,10 @@ export default function AdminPayments() {
               Completed
             </option>
 
+            <option value="paid">
+              Paid
+            </option>
+
             <option value="failed">
               Failed
             </option>
@@ -397,8 +335,7 @@ export default function AdminPayments() {
           <EmptyState
             title="No referral payments found"
             message={
-              search ||
-              statusFilter !== "all"
+              search || statusFilter !== "all"
                 ? "Try changing your search or filter."
                 : "Referral payments will appear here."
             }
@@ -423,21 +360,15 @@ export default function AdminPayments() {
 
               <tbody>
                 {filteredPayments.map((payment) => {
-                  const paymentId =
-                    payment.paymentId ||
-                    payment.id;
-
-                  const amount =
-                    getPaymentAmount(payment);
-
                   const paymentStatus =
-                    getPaymentStatus(payment);
+                    payment.paymentStatus ||
+                    "not_paid";
 
                   return (
                     <tr key={payment.id}>
                       <td>
                         <span className="table-id">
-                          {paymentId}
+                          {payment.paymentId}
                         </span>
                       </td>
 
@@ -459,13 +390,14 @@ export default function AdminPayments() {
                         <div>
                           <strong>
                             {payment.providerName ||
-                              payment.name ||
+                              payment.referredProviderName ||
                               "Unknown Provider"}
                           </strong>
                         </div>
 
                         <small>
                           {payment.providerPhone ||
+                            payment.referredProviderPhone ||
                             payment.phone ||
                             "Phone unavailable"}
                         </small>
@@ -478,12 +410,13 @@ export default function AdminPayments() {
                       </td>
 
                       <td>
-                        {formatCurrency(amount)}
+                        {formatCurrency(
+                          payment.paymentAmount
+                        )}
                       </td>
 
                       <td>
-                        {payment.paymentMethod ||
-                          "UPI"}
+                        {payment.paymentMethod}
                       </td>
 
                       <td>
@@ -493,9 +426,7 @@ export default function AdminPayments() {
                       </td>
 
                       <td>
-                        {formatDate(
-                          payment.paymentDate
-                        )}
+                        {formatDate(payment.paidAt)}
                       </td>
 
                       <td>
