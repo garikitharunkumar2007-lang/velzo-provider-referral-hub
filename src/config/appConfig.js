@@ -25,14 +25,17 @@ export const APP_CONFIG = {
     approved: "approved",
     rejected: "rejected",
     successful: "successful",
+    paid: "paid",
   },
 
   paymentStatuses: {
     pending: "pending",
     processing: "processing",
     paid: "paid",
+    completed: "completed",
     failed: "failed",
     cancelled: "cancelled",
+    notPaid: "not_paid",
   },
 
   bookingStatuses: {
@@ -56,6 +59,7 @@ export const APP_CONFIG = {
   masterCollections: [
     "tadepalliguedem_mechanics",
     "union_master_list",
+    "verifiedProviders",
   ],
 
   firestoreCollections: {
@@ -65,6 +69,7 @@ export const APP_CONFIG = {
     payments: "payments",
     complaints: "complaints",
     referrals: "referrals",
+    verifiedProviders: "verifiedProviders",
     notifications: "notifications",
     settings: "settings",
   },

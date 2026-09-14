@@ -1,122 +1,171 @@
-import React, { useEffect, useMemo, useState } from "react";
+// src/pages/admin/AdminReferralDetails.jsx
+
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  collection,
   doc,
   getDoc,
-  setDoc,
-  updateDoc,
+  getDocs,
+  limit,
+  query,
   serverTimestamp,
+  updateDoc,
+  where,
+  writeBatch,
 } from "firebase/firestore";
 import {
+  getDownloadURL,
   ref as storageRef,
   uploadBytes,
-  getDownloadURL,
 } from "firebase/storage";
 
 import { db, storage } from "../../firebase/firebaseConfig";
 import "./AdminReferralDetails.css";
 
-const REWARD_WITH_UNION_ID = 4;
-const REWARD_WITHOUT_UNION_ID = 3;
+const REFERRALS = "referrals";
+const VERIFIED_PROVIDERS = "verifiedProviders";
 
-function getValue(...values) {
-  for (const value of values) {
-    if (
-      value !== undefined &&
-      value !== null &&
-      String(value).trim() !== ""
-    ) {
-      return value;
-    }
-  }
+const text = (value) =>
+  value === undefined || value === null ? "" : String(value).trim();
 
-  return "—";
+const first = (...values) => values.find((value) => text(value) !== "") ?? "";
+
+function normalizePhone(value) {
+  const digits = text(value).replace(/\D/g, "");
+  return digits.length >= 10 ? digits.slice(-10) : digits;
 }
 
-function getText(value) {
-  if (value === undefined || value === null) return "";
-  return String(value).trim();
+function providerPhoneOf(referral) {
+  return first(
+    referral?.providerPhone,
+    referral?.providerPhoneNumber,
+    referral?.referredProviderPhone,
+    referral?.referredProviderMobile,
+    referral?.phoneNumber,
+    referral?.phone,
+    referral?.mobileNumber,
+    referral?.mobile,
+    referral?.provider?.phone,
+    referral?.provider?.phoneNumber,
+    referral?.provider?.mobile
+  );
 }
 
-function getTimestampDate(value) {
-  if (!value) return null;
+function providerNameOf(referral) {
+  return first(
+    referral?.providerName,
+    referral?.referredProviderName,
+    referral?.providerFullName,
+    referral?.fullName,
+    referral?.name,
+    referral?.provider?.name,
+    referral?.provider?.fullName,
+    "Provider unavailable"
+  );
+}
 
-  if (typeof value?.toDate === "function") {
-    return value.toDate();
-  }
+function providerRoleOf(referral) {
+  return first(
+    referral?.serviceType,
+    referral?.service,
+    referral?.role,
+    referral?.providerRole,
+    referral?.provider?.role,
+    "—"
+  );
+}
 
-  if (value instanceof Date) {
-    return value;
-  }
+function providerUnionIdOf(referral) {
+  return first(
+    referral?.unionLabourId,
+    referral?.unionId,
+    referral?.unionID,
+    referral?.labourId,
+    referral?.labourID,
+    referral?.laborId,
+    referral?.unionNumber,
+    referral?.provider?.unionId
+  );
+}
 
-  const date = new Date(value);
+function providerAddressOf(referral) {
+  return first(
+    referral?.providerAddress,
+    referral?.address,
+    referral?.provider?.address,
+    "—"
+  );
+}
 
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date;
+function statusOf(referral) {
+  return text(
+    referral?.status ||
+      referral?.currentStatus ||
+      referral?.adminStatus ||
+      "pending"
+  ).toLowerCase().replace(/[_-]/g, " ");
 }
 
 function formatDate(value) {
-  const date = getTimestampDate(value);
+  if (!value) return "—";
+  try {
+    const date =
+      typeof value?.toDate === "function"
+        ? value.toDate()
+        : new Date(value);
+    return Number.isNaN(date.getTime())
+      ? "—"
+      : date.toLocaleString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+  } catch {
+    return "—";
+  }
+}
 
-  if (!date) return "—";
-
-  return date.toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
+function formatCurrency(value) {
+  return Number(value || 0).toLocaleString("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
   });
 }
 
-function normalizeStatus(value) {
-  return getText(value)
-    .toLowerCase()
-    .replace(/[_-]/g, " ")
-    .trim();
+function getReward(referral) {
+  const stored = first(
+    referral?.rewardAmount,
+    referral?.paymentAmount,
+    referral?.rewardEarned,
+    referral?.referralReward,
+    referral?.reward
+  );
+  const amount = Number(stored);
+  if (Number.isFinite(amount) && amount > 0) return amount;
+  return providerUnionIdOf(referral) ? 4 : 3;
 }
 
-function getStatusClass(value) {
-  const status = normalizeStatus(value);
-
-  if (
-    [
-      "approved",
-      "accepted",
-      "verified",
-      "successful",
-      "completed",
-      "paid",
-      "success",
-    ].includes(status)
-  ) {
+function statusClass(value) {
+  const status = statusOf({ status: value });
+  if (["paid", "successful", "verified", "approved", "completed"].includes(status)) {
     return "status-success";
   }
-
-  if (
-    [
-      "rejected",
-      "declined",
-      "failed",
-      "cancelled",
-      "canceled",
-    ].includes(status)
-  ) {
+  if (["rejected", "declined", "failed", "cancelled", "canceled"].includes(status)) {
     return "status-danger";
   }
-
   return "status-pending";
 }
 
 function StatusBadge({ value }) {
-  const displayValue = getValue(value);
-
   return (
-    <span className={`status-badge ${getStatusClass(displayValue)}`}>
-      {String(displayValue)}
+    <span className={`status-badge ${statusClass(value)}`}>
+      {text(value || "pending")
+        .replace(/[_-]/g, " ")
+        .replace(/\b\w/g, (letter) => letter.toUpperCase())}
     </span>
   );
 }
@@ -125,11 +174,45 @@ function DetailRow({ label, value, highlight = false }) {
   return (
     <div className="detail-row">
       <span className="detail-label">{label}</span>
-      <span className={`detail-value ${highlight ? "highlight-value" : ""}`}>
-        {getValue(value)}
-      </span>
+      <strong className={highlight ? "highlight-value" : "detail-value"}>
+        {text(value) || "—"}
+      </strong>
     </div>
   );
+}
+
+async function findVerifiedProviderByPhone(phone, currentReferralId) {
+  const normalized = normalizePhone(phone);
+  if (normalized.length !== 10) return null;
+
+  const collectionRef = collection(db, VERIFIED_PROVIDERS);
+
+  const fields = ["phoneNumber", "providerPhone", "phone", "mobileNumber"];
+  const results = await Promise.all(
+    fields.map(async (field) => {
+      try {
+        const snapshot = await getDocs(
+          query(collectionRef, where(field, "==", normalized), limit(10))
+        );
+        return snapshot.docs;
+      } catch (error) {
+        // A missing index or field must not stop the other checks.
+        console.warn(`Duplicate check failed for ${field}`, error);
+        return [];
+      }
+    })
+  );
+
+  const duplicate = results
+    .flat()
+    .find((item) => item.id !== currentReferralId);
+
+  if (!duplicate) return null;
+
+  return {
+    id: duplicate.id,
+    ...duplicate.data(),
+  };
 }
 
 export default function AdminReferralDetails() {
@@ -139,365 +222,332 @@ export default function AdminReferralDetails() {
   const [referral, setReferral] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-
-  const [rejectionReason, setRejectionReason] = useState("");
+  const [duplicateProvider, setDuplicateProvider] = useState(null);
+  const [duplicateChecking, setDuplicateChecking] = useState(true);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [rejectReason, setRejectReason] = useState("");
   const [showRejectBox, setShowRejectBox] = useState(false);
-
-  const [paymentProof, setPaymentProof] = useState(null);
-  const [paymentProofPreview, setPaymentProofPreview] = useState("");
   const [showPaymentBox, setShowPaymentBox] = useState(false);
+  const [paymentFile, setPaymentFile] = useState(null);
+  const [paymentPreview, setPaymentPreview] = useState("");
 
-  const [message, setMessage] = useState({
-    type: "",
-    text: "",
-  });
+  const providerName = providerNameOf(referral);
+  const providerPhone = providerPhoneOf(referral);
+  const unionId = providerUnionIdOf(referral);
+  const providerRole = providerRoleOf(referral);
+  const providerAddress = providerAddressOf(referral);
+  const automaticReward = useMemo(() => getReward(referral), [referral]);
 
-  useEffect(() => {
-    let mounted = true;
+  const currentStatus = statusOf(referral);
+  const isRejected = currentStatus === "rejected";
+  const isPaid =
+    currentStatus === "paid" ||
+    text(referral?.paymentStatus).toLowerCase() === "completed" ||
+    referral?.movedToVerifiedProviders === true;
+  const isApproved =
+    ["approved", "accepted", "verified"].includes(currentStatus) ||
+    text(referral?.adminStatus).toLowerCase() === "approved";
 
-    async function loadReferral() {
-      if (!referralId) {
-        setMessage({
-          type: "error",
-          text: "Referral ID is missing.",
-        });
-        setLoading(false);
+  const loadReferral = useCallback(async () => {
+    if (!referralId) {
+      setError("Referral ID is missing.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+      const snapshot = await getDoc(doc(db, REFERRALS, referralId));
+
+      if (!snapshot.exists()) {
+        setReferral(null);
+        setError("Referral not found.");
         return;
       }
 
-      try {
-        setLoading(true);
-
-        const referralRef = doc(db, "referrals", referralId);
-        const referralSnap = await getDoc(referralRef);
-
-        if (!referralSnap.exists()) {
-          if (mounted) {
-            setMessage({
-              type: "error",
-              text: "Referral not found.",
-            });
-          }
-
-          return;
-        }
-
-        if (mounted) {
-          setReferral({
-            id: referralSnap.id,
-            ...referralSnap.data(),
-          });
-        }
-      } catch (error) {
-        console.error("Error loading referral:", error);
-
-        if (mounted) {
-          setMessage({
-            type: "error",
-            text: "Unable to load referral details.",
-          });
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
+      setReferral({ id: snapshot.id, ...snapshot.data() });
+    } catch (err) {
+      console.error("Load referral error:", err);
+      setError(err?.message || "Unable to load referral.");
+    } finally {
+      setLoading(false);
     }
-
-    loadReferral();
-
-    return () => {
-      mounted = false;
-    };
   }, [referralId]);
 
+  const checkDuplicate = useCallback(
+    async (referralData) => {
+      if (!referralData) return;
+
+      try {
+        setDuplicateChecking(true);
+        const duplicate = await findVerifiedProviderByPhone(
+          providerPhoneOf(referralData),
+          referralId
+        );
+
+        setDuplicateProvider(duplicate);
+
+        const existingStatus = statusOf(referralData);
+        const alreadyPaid =
+          existingStatus === "paid" ||
+          text(referralData.paymentStatus).toLowerCase() === "completed" ||
+          referralData.movedToVerifiedProviders === true;
+
+        if (
+          duplicate &&
+          !alreadyPaid &&
+          existingStatus !== "rejected" &&
+          !referralData.isDuplicateProvider
+        ) {
+          const reason =
+            "Provider already exists in verifiedProviders with the same mobile number.";
+
+          await updateDoc(doc(db, REFERRALS, referralId), {
+            status: "rejected",
+            currentStatus: "rejected",
+            adminStatus: "rejected",
+            verificationStatus: "rejected",
+            paymentStatus: "not_paid",
+            rewardStatus: "rejected",
+            reward: 0,
+            rewardAmount: 0,
+            paymentAmount: 0,
+            isDuplicateProvider: true,
+            duplicateProviderId: duplicate.id,
+            duplicateProviderName:
+              duplicate.providerName || duplicate.name || "Existing provider",
+            duplicateProviderPhone:
+              normalizePhone(
+                duplicate.phoneNumber ||
+                  duplicate.providerPhone ||
+                  duplicate.phone
+              ),
+            rejectionReason: reason,
+            rejectedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+
+          setReferral((previous) => ({
+            ...previous,
+            status: "rejected",
+            currentStatus: "rejected",
+            adminStatus: "rejected",
+            verificationStatus: "rejected",
+            paymentStatus: "not_paid",
+            rewardStatus: "rejected",
+            reward: 0,
+            rewardAmount: 0,
+            paymentAmount: 0,
+            isDuplicateProvider: true,
+            duplicateProviderId: duplicate.id,
+            rejectionReason: reason,
+          }));
+
+          setSuccess("Duplicate provider found. Referral automatically rejected.");
+        }
+      } catch (err) {
+        console.error("Duplicate provider check error:", err);
+        setError(
+          "Unable to verify duplicate provider. Check Firestore permissions and phone fields."
+        );
+      } finally {
+        setDuplicateChecking(false);
+      }
+    },
+    [referralId]
+  );
+
   useEffect(() => {
-    if (!paymentProof) {
-      setPaymentProofPreview("");
-      return;
-    }
+    loadReferral();
+  }, [loadReferral]);
 
-    const previewUrl = URL.createObjectURL(paymentProof);
-    setPaymentProofPreview(previewUrl);
+  useEffect(() => {
+    if (referral) checkDuplicate(referral);
+  }, [referral, checkDuplicate]);
 
-    return () => URL.revokeObjectURL(previewUrl);
-  }, [paymentProof]);
-
-  const providerName = useMemo(
-    () =>
-      getValue(
-        referral?.providerName,
-        referral?.provider?.name,
-        referral?.name,
-        referral?.referredProviderName
-      ),
-    [referral]
-  );
-
-  const providerPhone = useMemo(
-    () =>
-      getValue(
-        referral?.providerPhone,
-        referral?.phoneNumber,
-        referral?.phone,
-        referral?.provider?.phone
-      ),
-    [referral]
-  );
-
-  const providerAddress = useMemo(
-    () =>
-      getValue(
-        referral?.address,
-        referral?.providerAddress,
-        referral?.location,
-        referral?.provider?.address
-      ),
-    [referral]
-  );
-
-  const providerRole = useMemo(
-    () =>
-      getValue(
-        referral?.role,
-        referral?.service,
-        referral?.serviceType,
-        referral?.providerRole,
-        referral?.provider?.role
-      ),
-    [referral]
-  );
-
-  const unionLabourId = useMemo(
-    () =>
-      getValue(
-        referral?.unionLabourId,
-        referral?.unionId,
-        referral?.labourId,
-        referral?.unionLabourID,
-        referral?.unionNumber,
-        referral?.labourNumber
-      ),
-    [referral]
-  );
-
-  const hasUnionLabourId = useMemo(() => {
-    const id = getText(unionLabourId);
-
-    return id !== "" && id !== "—" && id.toLowerCase() !== "not provided";
-  }, [unionLabourId]);
-
-  const automaticReward = hasUnionLabourId
-    ? REWARD_WITH_UNION_ID
-    : REWARD_WITHOUT_UNION_ID;
-
-  const currentStatus = getValue(
-    referral?.status,
-    referral?.currentStatus,
-    referral?.paymentStatus
-  );
-
-  const adminStatus = getValue(referral?.adminStatus, "pending");
-
-  const verificationStatus = getValue(
-    referral?.verificationStatus,
-    "pending"
-  );
-
-  const onboardingStatus = getValue(
-    referral?.onboardingStatus,
-    "pending"
-  );
-
-  const rewardStatus = getValue(
-    referral?.rewardStatus,
-    "not_earned"
-  );
-
-  const paymentStatus = getValue(
-    referral?.paymentStatus,
-    "not_paid"
-  );
-
-  const isRejected =
-    normalizeStatus(currentStatus) === "rejected" ||
-    normalizeStatus(adminStatus) === "rejected";
-
-  const isPaid =
-    normalizeStatus(paymentStatus) === "completed" ||
-    normalizeStatus(paymentStatus) === "paid" ||
-    normalizeStatus(currentStatus) === "paid" ||
-    normalizeStatus(currentStatus) === "successful";
-
-  const isApproved =
-    normalizeStatus(adminStatus) === "approved" ||
-    normalizeStatus(currentStatus) === "accepted" ||
-    normalizeStatus(currentStatus) === "approved";
-
-  function showMessage(type, text) {
-    setMessage({ type, text });
-  }
-
-  async function reloadReferral() {
-    const referralRef = doc(db, "referrals", referralId);
-    const referralSnap = await getDoc(referralRef);
-
-    if (referralSnap.exists()) {
-      setReferral({
-        id: referralSnap.id,
-        ...referralSnap.data(),
-      });
-    }
-  }
-
-  async function handleApproveReferral() {
-    if (!referralId || actionLoading) return;
-
-    try {
-      setActionLoading(true);
-      setMessage({ type: "", text: "" });
-
-      const referralRef = doc(db, "referrals", referralId);
-
-      await updateDoc(referralRef, {
-        status: "accepted",
-        adminStatus: "approved",
-        verificationStatus: "verified",
-        rewardStatus: "approved",
-        rejectionReason: "",
-        rejectionReasons: [],
-        acceptedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      await reloadReferral();
-
-      showMessage(
-        "success",
-        "Referral approved successfully. You can now complete the payment."
-      );
-    } catch (error) {
-      console.error("Approve referral error:", error);
-
-      showMessage(
-        "error",
-        "Unable to approve referral. Please try again."
-      );
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  async function handleRejectReferral() {
-    if (!referralId || actionLoading) return;
-
-    const reason = rejectionReason.trim();
-
-    if (!reason) {
-      showMessage("error", "Please enter a rejection reason.");
-      return;
-    }
-
-    try {
-      setActionLoading(true);
-      setMessage({ type: "", text: "" });
-
-      const referralRef = doc(db, "referrals", referralId);
-
-      await updateDoc(referralRef, {
-        status: "rejected",
-        adminStatus: "rejected",
-        verificationStatus: "rejected",
-        rewardStatus: "rejected",
-        paymentStatus: "not_paid",
-        rejectionReason: reason,
-        rejectionReasons: [reason],
-        rejectedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-
-      await reloadReferral();
-
-      setShowRejectBox(false);
-      setRejectionReason("");
-
-      showMessage("success", "Referral rejected successfully.");
-    } catch (error) {
-      console.error("Reject referral error:", error);
-
-      showMessage(
-        "error",
-        "Unable to reject referral. Please try again."
-      );
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  function handlePaymentProofChange(event) {
-    const file = event.target.files?.[0];
+  function handlePaymentFileChange(event) {
+    const file = event.target.files?.[0] || null;
+    setError("");
+    setSuccess("");
 
     if (!file) {
-      setPaymentProof(null);
+      setPaymentFile(null);
+      setPaymentPreview("");
       return;
     }
 
     if (!file.type.startsWith("image/")) {
-      showMessage("error", "Please upload an image file as payment proof.");
-      event.target.value = "";
+      setError("Please upload an image payment proof.");
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      showMessage("error", "Payment proof must be below 5 MB.");
-      event.target.value = "";
+      setError("Payment proof must be smaller than 5 MB.");
       return;
     }
 
-    setPaymentProof(file);
-    setMessage({ type: "", text: "" });
+    setPaymentFile(file);
+    setPaymentPreview(URL.createObjectURL(file));
   }
 
-  async function handleCompletePayment() {
-    if (!referralId || actionLoading) return;
-
-    if (isRejected) {
-      showMessage(
-        "error",
-        "Rejected referrals cannot be marked as paid."
-      );
-      return;
-    }
-
-    if (!isApproved) {
-      showMessage(
-        "error",
-        "Please approve the referral before completing payment."
-      );
-      return;
-    }
-
-    if (!paymentProof) {
-      showMessage(
-        "error",
-        "Please upload the payment completed photo."
-      );
+  async function approveReferral() {
+    if (duplicateProvider) {
+      setError("This provider already exists in verifiedProviders. Approval is blocked.");
       return;
     }
 
     try {
       setActionLoading(true);
-      setMessage({ type: "", text: "" });
+      await updateDoc(doc(db, REFERRALS, referralId), {
+        status: "approved",
+        currentStatus: "approved",
+        adminStatus: "approved",
+        verificationStatus: "approved",
+        approvedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setReferral((previous) => ({
+        ...previous,
+        status: "approved",
+        currentStatus: "approved",
+        adminStatus: "approved",
+        verificationStatus: "approved",
+      }));
+      setSuccess("Referral approved successfully.");
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || "Unable to approve referral.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
-      const proofPath = `paymentProofs/${referralId}/${Date.now()}-${paymentProof.name}`;
-      const proofStorageRef = storageRef(storage, proofPath);
+  async function rejectReferral() {
+    const reason = rejectReason.trim();
+    if (!reason) {
+      setError("Please enter a rejection reason.");
+      return;
+    }
 
-      await uploadBytes(proofStorageRef, paymentProof);
-      const paymentProofUrl = await getDownloadURL(proofStorageRef);
+    try {
+      setActionLoading(true);
+      await updateDoc(doc(db, REFERRALS, referralId), {
+        status: "rejected",
+        currentStatus: "rejected",
+        adminStatus: "rejected",
+        verificationStatus: "rejected",
+        paymentStatus: "not_paid",
+        rewardStatus: "rejected",
+        reward: 0,
+        rewardAmount: 0,
+        paymentAmount: 0,
+        rejectionReason: reason,
+        rejectedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setReferral((previous) => ({
+        ...previous,
+        status: "rejected",
+        currentStatus: "rejected",
+        adminStatus: "rejected",
+        verificationStatus: "rejected",
+        paymentStatus: "not_paid",
+        rewardStatus: "rejected",
+        reward: 0,
+        rewardAmount: 0,
+        paymentAmount: 0,
+        rejectionReason: reason,
+      }));
+      setShowRejectBox(false);
+      setRejectReason("");
+      setSuccess("Referral rejected successfully.");
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || "Unable to reject referral.");
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
-      const referralRef = doc(db, "referrals", referralId);
+  async function completePayment() {
+    if (!referral || isRejected || isPaid || duplicateProvider) return;
 
-      await updateDoc(referralRef, {
+    if (!isApproved) {
+      setError("Approve the referral before completing payment.");
+      return;
+    }
+
+    if (!paymentFile) {
+      setError("Please upload the payment completed photo.");
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      setError("");
+      setSuccess("");
+
+      // Re-check immediately before payment to prevent race-condition duplicates.
+      const latestDuplicate = await findVerifiedProviderByPhone(
+        providerPhone,
+        referralId
+      );
+
+      if (latestDuplicate) {
+        setDuplicateProvider(latestDuplicate);
+        await rejectReferralForDuplicate(latestDuplicate);
+        return;
+      }
+
+      const extension = paymentFile.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path =
+        `referral-payments/${referralId}/payment-proof-${Date.now()}.${extension}`;
+
+      const fileRef = storageRef(storage, path);
+      await uploadBytes(fileRef, paymentFile, {
+        contentType: paymentFile.type,
+      });
+      const paymentProofUrl = await getDownloadURL(fileRef);
+
+      const referralRef = doc(db, REFERRALS, referralId);
+      const verifiedRef = doc(db, VERIFIED_PROVIDERS, referralId);
+      const batch = writeBatch(db);
+
+      const verifiedProviderData = {
+        referralId,
+        originalReferralId: referralId,
+        providerName,
+        providerPhone: normalizePhone(providerPhone),
+        phoneNumber: normalizePhone(providerPhone),
+        phone: normalizePhone(providerPhone),
+        unionLabourId: unionId,
+        unionId,
+        address: providerAddress,
+        role: providerRole,
+        service: providerRole,
+        serviceType: providerRole,
+        referrerId: first(referral.referrerId, referral.referrerUid, referral.userId),
+        referrerName: first(referral.referrerName, referral.submittedByName),
+        referrerPhone: first(referral.referrerPhone, referral.referrerPhoneNumber),
+        upiNumber: first(referral.upiNumber, referral.paymentNumber, referral.upi),
+        rewardAmount: automaticReward,
+        paymentAmount: automaticReward,
+        paymentStatus: "completed",
+        verificationStatus: "verified",
+        onboardingStatus: "completed",
+        providerStatus: "verified",
+        paymentProofUrl,
+        paymentProofPath: path,
+        source: "referral_payment",
+        verifiedAt: serverTimestamp(),
+        paidAt: serverTimestamp(),
+        createdAt: referral.createdAt || serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      batch.update(referralRef, {
         status: "paid",
         currentStatus: "paid",
         adminStatus: "approved",
@@ -505,102 +555,95 @@ export default function AdminReferralDetails() {
         onboardingStatus: "completed",
         rewardStatus: "paid",
         paymentStatus: "completed",
-
         reward: automaticReward,
         rewardAmount: automaticReward,
         rewardEarned: automaticReward,
         referralReward: automaticReward,
         paymentAmount: automaticReward,
-
+        paymentMethod: "UPI",
         paymentProofUrl,
-        paymentProofPath: proofPath,
+        paymentProofPath: path,
+        movedToVerifiedProviders: true,
+        verifiedProviderId: referralId,
+        providerMovedAt: serverTimestamp(),
         paidAt: serverTimestamp(),
         paymentCompletedAt: serverTimestamp(),
+        verifiedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
-      const verifiedProviderRef = doc(
-        db,
-        "verifiedProviders",
-        referralId
-      );
+      batch.set(verifiedRef, verifiedProviderData, { merge: true });
+      await batch.commit();
 
-      await setDoc(
-        verifiedProviderRef,
-        {
-          referralId,
-
-          providerName:
-            getText(providerName) === "—" ? "" : providerName,
-
-          unionLabourId:
-            getText(unionLabourId) === "—" ? "" : unionLabourId,
-
-          phoneNumber:
-            getText(providerPhone) === "—" ? "" : providerPhone,
-
-          address:
-            getText(providerAddress) === "—" ? "" : providerAddress,
-
-          role:
-            getText(providerRole) === "—" ? "" : providerRole,
-
-          service:
-            getText(providerRole) === "—" ? "" : providerRole,
-
-          rewardAmount: automaticReward,
-          paymentStatus: "completed",
-          verificationStatus: "verified",
-          onboardingStatus: "completed",
-
-          referrerId: getValue(
-            referral?.referrerId,
-            referral?.referrerUid,
-            referral?.userId
-          ),
-
-          referrerName: getValue(
-            referral?.referrerName,
-            referral?.referrerDisplayName,
-            referral?.submittedByName
-          ),
-
-          referrerPhone: getValue(
-            referral?.referrerPhone,
-            referral?.referrerPhoneNumber
-          ),
-
-          paymentProofUrl,
-          paymentProofPath: proofPath,
-
-          createdAt: referral?.createdAt || serverTimestamp(),
-          verifiedAt: serverTimestamp(),
-          paidAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      await reloadReferral();
-
+      setReferral((previous) => ({
+        ...previous,
+        status: "paid",
+        currentStatus: "paid",
+        paymentStatus: "completed",
+        verificationStatus: "verified",
+        movedToVerifiedProviders: true,
+        reward: automaticReward,
+        rewardAmount: automaticReward,
+        paymentAmount: automaticReward,
+        paymentProofUrl,
+      }));
+      setPaymentFile(null);
+      setPaymentPreview("");
       setShowPaymentBox(false);
-      setPaymentProof(null);
-      setPaymentProofPreview("");
-
-      showMessage(
-        "success",
-        `Payment completed successfully. ₹${automaticReward} saved and provider added to verifiedProviders.`
+      setSuccess(
+        `${formatCurrency(automaticReward)} paid. Provider transferred to verifiedProviders.`
       );
-    } catch (error) {
-      console.error("Complete payment error:", error);
-
-      showMessage(
-        "error",
-        "Payment update failed. Please check Firebase Storage and try again."
+    } catch (err) {
+      console.error("Complete payment error:", err);
+      setError(
+        err?.message ||
+          "Payment failed. Provider was not transferred to verifiedProviders."
       );
     } finally {
       setActionLoading(false);
     }
+  }
+
+  async function rejectReferralForDuplicate(duplicate) {
+    const reason =
+      "Provider already exists in verifiedProviders with the same mobile number.";
+
+    await updateDoc(doc(db, REFERRALS, referralId), {
+      status: "rejected",
+      currentStatus: "rejected",
+      adminStatus: "rejected",
+      verificationStatus: "rejected",
+      paymentStatus: "not_paid",
+      rewardStatus: "rejected",
+      reward: 0,
+      rewardAmount: 0,
+      paymentAmount: 0,
+      isDuplicateProvider: true,
+      duplicateProviderId: duplicate.id,
+      duplicateProviderName: duplicate.providerName || duplicate.name || "",
+      duplicateProviderPhone: normalizePhone(
+        duplicate.phoneNumber || duplicate.providerPhone || duplicate.phone
+      ),
+      rejectionReason: reason,
+      rejectedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    setReferral((previous) => ({
+      ...previous,
+      status: "rejected",
+      currentStatus: "rejected",
+      adminStatus: "rejected",
+      verificationStatus: "rejected",
+      paymentStatus: "not_paid",
+      rewardStatus: "rejected",
+      reward: 0,
+      rewardAmount: 0,
+      paymentAmount: 0,
+      isDuplicateProvider: true,
+      rejectionReason: reason,
+    }));
+    setSuccess("Duplicate provider found. Referral automatically rejected.");
   }
 
   if (loading) {
@@ -608,7 +651,7 @@ export default function AdminReferralDetails() {
       <div className="admin-details-page referral-details-page">
         <div className="details-loading-card">
           <div className="loading-spinner" />
-          <p>Loading referral details...</p>
+          <p>Checking referral and verified providers...</p>
         </div>
       </div>
     );
@@ -619,12 +662,8 @@ export default function AdminReferralDetails() {
       <div className="admin-details-page referral-details-page">
         <div className="details-empty-card">
           <h2>Referral not found</h2>
-          <p>The requested referral does not exist.</p>
-
-          <button
-            className="secondary-action"
-            onClick={() => navigate("/admin/referrals")}
-          >
+          <p>{error || "The requested referral does not exist."}</p>
+          <button className="secondary-action" onClick={() => navigate("/admin/referrals")}>
             Back to Referrals
           </button>
         </div>
@@ -636,28 +675,46 @@ export default function AdminReferralDetails() {
     <div className="admin-details-page referral-details-page">
       <div className="admin-details-header">
         <div>
-          <button
-            className="back-button"
-            onClick={() => navigate("/admin/referrals")}
-          >
+          <button className="back-button" onClick={() => navigate("/admin/referrals")}>
             ← Back to Referrals
           </button>
-
           <p className="page-eyebrow">VELZO ADMIN</p>
           <h1>Referral Details</h1>
-
           <p className="referral-id">
-            Referral ID:
-            <strong>{referralId}</strong>
+            Referral ID: <strong>{referralId}</strong>
           </p>
         </div>
-
         <StatusBadge value={currentStatus} />
       </div>
 
-      {message.text && (
-        <div className={`admin-alert ${message.type}`}>
-          {message.text}
+      {error && <div className="admin-alert error">{error}</div>}
+      {success && <div className="admin-alert success">{success}</div>}
+
+      {duplicateChecking && (
+        <div className="admin-alert pending">
+          Checking provider mobile number in verifiedProviders...
+        </div>
+      )}
+
+      {duplicateProvider && (
+        <div className="admin-alert error duplicate-provider-alert">
+          <strong>⚠️ Duplicate provider detected</strong>
+          <p>
+            This mobile number already exists in <strong>verifiedProviders</strong>.
+            This referral is rejected and payment is blocked.
+          </p>
+          <p>
+            <strong>Existing provider:</strong>{" "}
+            {duplicateProvider.providerName || duplicateProvider.name || "Existing provider"}
+            <br />
+            <strong>Mobile:</strong>{" "}
+            {duplicateProvider.phoneNumber ||
+              duplicateProvider.providerPhone ||
+              duplicateProvider.phone ||
+              providerPhone}
+            <br />
+            <strong>Document ID:</strong> {duplicateProvider.id}
+          </p>
         </div>
       )}
 
@@ -670,50 +727,12 @@ export default function AdminReferralDetails() {
               <p>Person who submitted this referral</p>
             </div>
           </div>
-
           <div className="details-list">
-            <DetailRow
-              label="Referrer Name"
-              value={getValue(
-                referral.referrerName,
-                referral.submittedByName,
-                referral.referrer
-              )}
-            />
-
-            <DetailRow
-              label="Referrer ID"
-              value={getValue(
-                referral.referrerId,
-                referral.referrerUid,
-                referral.userId
-              )}
-            />
-
-            <DetailRow
-              label="Referrer Phone"
-              value={getValue(
-                referral.referrerPhone,
-                referral.referrerPhoneNumber
-              )}
-            />
-
-            <DetailRow
-              label="UPI / Payment Number"
-              value={getValue(
-                referral.upiNumber,
-                referral.paymentNumber,
-                referral.upi,
-                referral.referrerUpi
-              )}
-            />
-
-            <DetailRow
-              label="Referral Submitted"
-              value={formatDate(
-                referral.createdAt || referral.submittedAt
-              )}
-            />
+            <DetailRow label="Referrer Name" value={first(referral.referrerName, referral.submittedByName, referral.referrer)} />
+            <DetailRow label="Referrer ID" value={first(referral.referrerId, referral.referrerUid, referral.userId)} />
+            <DetailRow label="Referrer Phone" value={first(referral.referrerPhone, referral.referrerPhoneNumber)} />
+            <DetailRow label="UPI / Payment Number" value={first(referral.upiNumber, referral.paymentNumber, referral.upi, referral.referrerUpi)} />
+            <DetailRow label="Referral Submitted" value={formatDate(referral.createdAt || referral.submittedAt)} />
           </div>
         </div>
 
@@ -725,108 +744,34 @@ export default function AdminReferralDetails() {
               <p>Referred service provider information</p>
             </div>
           </div>
-
           <div className="details-list">
-            <DetailRow
-              label="Provider Name"
-              value={providerName}
-              highlight
-            />
-
-            <DetailRow
-              label="Provider ID"
-              value={getValue(
-                referral.providerId,
-                referral.providerUid,
-                referral.providerUserId
-              )}
-            />
-
-            <DetailRow
-              label="Phone Number"
-              value={providerPhone}
-            />
-
-            <DetailRow
-              label="Service / Role"
-              value={providerRole}
-            />
-
-            <DetailRow
-              label="Union / Labour ID"
-              value={unionLabourId}
-              highlight={hasUnionLabourId}
-            />
-
-            <DetailRow
-              label="Address"
-              value={providerAddress}
-            />
+            <DetailRow label="Provider Name" value={providerName} highlight />
+            <DetailRow label="Provider ID" value={first(referral.providerId, referral.providerUid, referral.providerUserId)} />
+            <DetailRow label="Phone Number" value={providerPhone} />
+            <DetailRow label="Service / Role" value={providerRole} />
+            <DetailRow label="Union / Labour ID" value={unionId || "Not provided"} highlight={Boolean(unionId)} />
+            <DetailRow label="Address" value={providerAddress} />
           </div>
         </div>
       </section>
 
       <section className="status-card">
         <div className="card-heading">
-          <span className="card-icon">📊</span>
+          <span className="card-icon">📋</span>
           <div>
             <h2>Referral Status</h2>
-            <p>Current referral progress</p>
+            <p>Current verification and payment state</p>
           </div>
         </div>
-
         <div className="status-list">
-          <div className="status-row">
-            <span>Current Status</span>
-            <StatusBadge value={currentStatus} />
-          </div>
-
-          <div className="status-row">
-            <span>Admin Status</span>
-            <StatusBadge value={adminStatus} />
-          </div>
-
-          <div className="status-row">
-            <span>Verification Status</span>
-            <StatusBadge value={verificationStatus} />
-          </div>
-
-          <div className="status-row">
-            <span>Onboarding Status</span>
-            <StatusBadge value={onboardingStatus} />
-          </div>
-
-          <div className="status-row">
-            <span>Reward Status</span>
-            <StatusBadge value={rewardStatus} />
-          </div>
-
-          <div className="status-row">
-            <span>Payment Status</span>
-            <StatusBadge value={paymentStatus} />
-          </div>
-
-          <div className="status-row reward-row">
-            <span>Reward Amount</span>
-            <strong>₹{automaticReward}</strong>
-          </div>
-
-          <div className="status-row">
-            <span>Accepted At</span>
-            <strong>{formatDate(referral.acceptedAt)}</strong>
-          </div>
-
-          <div className="status-row">
-            <span>Verified At</span>
-            <strong>{formatDate(referral.verifiedAt)}</strong>
-          </div>
-
-          <div className="status-row">
-            <span>Paid At</span>
-            <strong>
-              {formatDate(referral.paidAt || referral.paymentCompletedAt)}
-            </strong>
-          </div>
+          <DetailRow label="Referral Status" value={currentStatus} />
+          <DetailRow label="Payment Status" value={referral.paymentStatus || "pending"} />
+          <DetailRow label="Reward Amount" value={formatCurrency(isRejected ? 0 : automaticReward)} highlight />
+          <DetailRow label="Verified Providers" value={isPaid ? `Transferred: ${referralId}` : "Not transferred"} />
+          <DetailRow label="Paid At" value={formatDate(referral.paidAt || referral.paymentCompletedAt)} />
+          {referral.rejectionReason && (
+            <DetailRow label="Rejection Reason" value={referral.rejectionReason} />
+          )}
         </div>
       </section>
 
@@ -839,19 +784,8 @@ export default function AdminReferralDetails() {
               <p>Uploaded payment completion proof</p>
             </div>
           </div>
-
-          <img
-            src={referral.paymentProofUrl}
-            alt="Payment proof"
-            className="existing-proof-image"
-          />
-
-          <a
-            href={referral.paymentProofUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="proof-link"
-          >
+          <img src={referral.paymentProofUrl} alt="Payment proof" className="existing-proof-image" />
+          <a href={referral.paymentProofUrl} target="_blank" rel="noreferrer" className="proof-link">
             Open Payment Proof
           </a>
         </section>
@@ -868,43 +802,30 @@ export default function AdminReferralDetails() {
 
         {isRejected && (
           <div className="action-notice rejected-notice">
-            This referral has been rejected.
+            This referral has been rejected. No payment can be completed.
           </div>
         )}
 
         {isPaid && (
           <div className="action-notice paid-notice">
-            Payment completed. This provider is saved in the verified
-            provider registry.
+            Payment completed. Provider is saved in verifiedProviders/{referralId}.
           </div>
         )}
 
-        {!isRejected && !isPaid && (
+        {!isRejected && !isPaid && !duplicateProvider && (
           <div className="action-buttons">
             {!isApproved && (
-              <button
-                className="approve-action"
-                onClick={handleApproveReferral}
-                disabled={actionLoading}
-              >
+              <button className="approve-action" disabled={actionLoading || duplicateChecking} onClick={approveReferral}>
                 {actionLoading ? "Processing..." : "Approve Referral"}
               </button>
             )}
 
-            <button
-              className="danger-action"
-              onClick={() => setShowRejectBox((previous) => !previous)}
-              disabled={actionLoading}
-            >
+            <button className="danger-action" disabled={actionLoading} onClick={() => setShowRejectBox((value) => !value)}>
               Reject Referral
             </button>
 
-            {isApproved && (
-              <button
-                className="payment-action"
-                onClick={() => setShowPaymentBox((previous) => !previous)}
-                disabled={actionLoading}
-              >
+            {isApproved && !showPaymentBox && (
+              <button className="approve-action" disabled={actionLoading} onClick={() => setShowPaymentBox(true)}>
                 Complete Payment
               </button>
             )}
@@ -913,136 +834,51 @@ export default function AdminReferralDetails() {
 
         {showRejectBox && !isRejected && (
           <div className="action-box rejection-box">
-            <h3>Reject Referral</h3>
-
-            <p>
-              Please provide a clear reason for rejecting this referral.
-            </p>
-
-            <label htmlFor="rejectionReason">
-              Rejection Reason
-            </label>
-
+            <label htmlFor="rejection-reason">Rejection reason</label>
             <textarea
-              id="rejectionReason"
-              rows="4"
-              value={rejectionReason}
-              onChange={(event) =>
-                setRejectionReason(event.target.value)
-              }
-              placeholder="Enter rejection reason..."
-              disabled={actionLoading}
+              id="rejection-reason"
+              value={rejectReason}
+              onChange={(event) => setRejectReason(event.target.value)}
+              placeholder="Enter the reason for rejection..."
+              rows={4}
             />
-
             <div className="action-buttons">
-              <button
-                className="danger-action"
-                onClick={handleRejectReferral}
-                disabled={actionLoading}
-              >
+              <button className="danger-action" disabled={actionLoading} onClick={rejectReferral}>
                 {actionLoading ? "Rejecting..." : "Confirm Rejection"}
               </button>
-
-              <button
-                className="secondary-action"
-                onClick={() => {
-                  setShowRejectBox(false);
-                  setRejectionReason("");
-                }}
-                disabled={actionLoading}
-              >
+              <button className="secondary-action" onClick={() => setShowRejectBox(false)}>
                 Cancel
               </button>
             </div>
           </div>
         )}
 
-        {showPaymentBox && isApproved && !isPaid && !isRejected && (
+        {showPaymentBox && isApproved && !isRejected && !isPaid && !duplicateProvider && (
           <div className="action-box payment-box">
-            <div className="payment-header">
-              <div>
-                <h3>Complete Referral Payment</h3>
-                <p>
-                  The reward amount is calculated automatically.
-                </p>
-              </div>
+            <h3>Complete Referral Payment</h3>
+            <p>
+              Automatic reward: <strong>{formatCurrency(automaticReward)}</strong>
+            </p>
+            <label htmlFor="payment-proof">Payment completed photo</label>
+            <input
+              id="payment-proof"
+              type="file"
+              accept="image/*"
+              onChange={handlePaymentFileChange}
+              disabled={actionLoading}
+            />
 
-              <div className="automatic-reward">
-                ₹{automaticReward}
-              </div>
-            </div>
-
-            <div className="reward-explanation">
-              {hasUnionLabourId ? (
-                <>
-                  <span className="reward-check">✓</span>
-                  Union / Labour ID found — reward fixed at{" "}
-                  <strong>₹4</strong>
-                </>
-              ) : (
-                <>
-                  <span className="reward-check">✓</span>
-                  No Union / Labour ID — reward fixed at{" "}
-                  <strong>₹3</strong>
-                </>
-              )}
-            </div>
-
-            <div className="payment-summary">
-              <span>Automatic Payment Amount</span>
-              <strong>₹{automaticReward}</strong>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="paymentProof">
-                Payment Completed Photo
-              </label>
-
-              <input
-                id="paymentProof"
-                type="file"
-                accept="image/*"
-                onChange={handlePaymentProofChange}
-                disabled={actionLoading}
-              />
-
-              <small>
-                Upload the payment screenshot or completed payment photo.
-                Maximum size: 5 MB.
-              </small>
-            </div>
-
-            {paymentProofPreview && (
-              <div className="payment-preview">
-                <p>Selected Payment Proof</p>
-
-                <img
-                  src={paymentProofPreview}
-                  alt="Selected payment proof preview"
-                />
+            {paymentPreview && (
+              <div className="payment-proof-preview">
+                <img src={paymentPreview} alt="Selected payment proof" />
               </div>
             )}
 
             <div className="action-buttons">
-              <button
-                className="payment-action"
-                onClick={handleCompletePayment}
-                disabled={actionLoading}
-              >
-                {actionLoading
-                  ? "Saving Payment..."
-                  : `Confirm ₹${automaticReward} Payment`}
+              <button className="approve-action" disabled={actionLoading || !paymentFile} onClick={completePayment}>
+                {actionLoading ? "Uploading..." : `Confirm ${formatCurrency(automaticReward)} Payment`}
               </button>
-
-              <button
-                className="secondary-action"
-                onClick={() => {
-                  setShowPaymentBox(false);
-                  setPaymentProof(null);
-                  setPaymentProofPreview("");
-                }}
-                disabled={actionLoading}
-              >
+              <button className="secondary-action" disabled={actionLoading} onClick={() => setShowPaymentBox(false)}>
                 Cancel
               </button>
             </div>
