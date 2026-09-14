@@ -15,45 +15,65 @@ import {
   browserLocalPersistence,
 } from "firebase/auth";
 
-import {
-  getFirestore,
-} from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 
-import {
-  getDatabase,
-} from "firebase/database";
+import { getDatabase } from "firebase/database";
 
-import {
-  getStorage,
-} from "firebase/storage";
+import { getStorage } from "firebase/storage";
 
-import {
-  getFunctions,
-} from "firebase/functions";
+import { getFunctions } from "firebase/functions";
 
 /* =========================================
    FIREBASE PROJECT CONFIG
 ========================================= */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB07S9hV1l0YXtSKrkX0pNzJLyymsKJ8iA",
-  authDomain: "helpmate-3cb4f.firebaseapp.com",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
 
-  databaseURL:
-    "https://helpmate-3cb4f-default-rtdb.asia-southeast1.firebasedatabase.app",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
 
-  projectId: "helpmate-3cb4f",
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
 
-  storageBucket:
-    "helpmate-3cb4f.firebasestorage.app",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
 
-  messagingSenderId: "577115961619",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
 
-  appId:
-    "1:577115961619:web:b091bb1791b99d461442e6",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
 
-  measurementId: "G-M187BC4QL5",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
+
+/* =========================================
+   CONFIGURATION VALIDATION
+========================================= */
+
+const requiredFirebaseConfig = {
+  apiKey: firebaseConfig.apiKey,
+  authDomain: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId,
+  storageBucket: firebaseConfig.storageBucket,
+  messagingSenderId: firebaseConfig.messagingSenderId,
+  appId: firebaseConfig.appId,
+};
+
+const missingFirebaseValues = Object.entries(requiredFirebaseConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+if (missingFirebaseValues.length > 0) {
+  console.error(
+    "Missing Firebase environment variables:",
+    missingFirebaseValues
+  );
+
+  throw new Error(
+    `Firebase configuration is incomplete. Missing: ${missingFirebaseValues.join(
+      ", "
+    )}`
+  );
+}
 
 /* =========================================
    INITIALIZE FIREBASE APP
@@ -62,68 +82,43 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 /* =========================================
-   FIREBASE SERVICES
+   FIREBASE AUTHENTICATION
 ========================================= */
 
-/*
- * Firebase Authentication
- *
- * Used if Firebase Auth is required
- * elsewhere in the application.
- */
 export const auth = getAuth(app);
 
-/*
- * Keep Firebase Auth session persistent
- * in the browser.
- */
-setPersistence(
-  auth,
-  browserLocalPersistence
-).catch((error) => {
-  console.error(
-    "Firebase Auth persistence error:",
-    error
-  );
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.error("Firebase Auth persistence error:", error);
 });
 
-/*
- * Cloud Firestore
- *
- * VELZO mobile app users are stored in:
- *
- * users/{phoneNumber}
- */
-export const db = getFirestore(app);
-
-/*
- * Firebase Realtime Database
- */
-export const realtimeDb = getDatabase(app);
-
-/*
- * Firebase Storage
- */
-export const storage = getStorage(app);
-
-/*
- * Firebase Cloud Functions
- *
- * Region must match deployed functions.
- */
-export const functions = getFunctions(
-  app,
-  "asia-south1"
-);
-
 /* =========================================
-   ANALYTICS
+   CLOUD FIRESTORE
 ========================================= */
 
-/*
- * Analytics may not be supported in every
- * browser or local development environment.
- */
+export const db = getFirestore(app);
+
+/* =========================================
+   REALTIME DATABASE
+========================================= */
+
+export const realtimeDb = getDatabase(app);
+
+/* =========================================
+   FIREBASE STORAGE
+========================================= */
+
+export const storage = getStorage(app);
+
+/* =========================================
+   FIREBASE CLOUD FUNCTIONS
+========================================= */
+
+export const functions = getFunctions(app, "asia-south1");
+
+/* =========================================
+   FIREBASE ANALYTICS
+========================================= */
+
 export let analytics = null;
 
 analyticsIsSupported()
@@ -133,10 +128,7 @@ analyticsIsSupported()
     }
   })
   .catch((error) => {
-    console.warn(
-      "Firebase Analytics is not available:",
-      error
-    );
+    console.warn("Firebase Analytics is not available:", error);
   });
 
 /* =========================================
