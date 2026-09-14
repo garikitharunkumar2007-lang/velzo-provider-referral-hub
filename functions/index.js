@@ -4,6 +4,10 @@ const {
 } = require("firebase-functions/v2/https");
 
 const {
+  onDocumentUpdated,
+} = require("firebase-functions/v2/firestore");
+
+const {
   setGlobalOptions,
 } = require("firebase-functions/v2");
 
@@ -26,12 +30,10 @@ PHONE NORMALIZATION
 function normalizePhone(value) {
   const digits = String(value || "").replace(/\D/g, "");
 
-  // 10 digit Indian number
   if (digits.length === 10) {
     return digits;
   }
 
-  // 91 + 10 digit Indian number
   if (
     digits.length === 12 &&
     digits.startsWith("91")
@@ -98,11 +100,11 @@ async function findUserByPhone(phone) {
   const documentIds = getPhoneDocumentIds(phone);
 
   for (const documentId of documentIds) {
-    const userRef = db
+    const userReference = db
       .collection("users")
       .doc(documentId);
 
-    const userSnapshot = await userRef.get();
+    const userSnapshot = await userReference.get();
 
     if (userSnapshot.exists) {
       return {
@@ -112,11 +114,6 @@ async function findUserByPhone(phone) {
       };
     }
   }
-
-  /*
-  Fallback query:
-  Search phone field also.
-  */
 
   const phoneQuery = await db
     .collection("users")
@@ -129,8 +126,7 @@ async function findUserByPhone(phone) {
     .get();
 
   if (!phoneQuery.empty) {
-    const firstDocument =
-      phoneQuery.docs[0];
+    const firstDocument = phoneQuery.docs[0];
 
     return {
       documentId: firstDocument.id,
@@ -158,10 +154,49 @@ async function createUserNotification({
 }) {
   if (!userId) {
     console.warn(
-      "Notification skipped: userId is missing."
+      "Notification skipped because userId is missing."
     );
 
     return null;
+  }
+
+  if (!referralId) {
+    console.warn(
+      "Notification skipped because referralId is missing."
+    );
+
+    return null;
+  }
+
+  /*
+  Deterministic document ID prevents duplicates.
+
+  Example:
+  referralId_rejected
+  referralId_accepted
+  */
+
+  const notificationId = `${referralId}_${type}`;
+
+  const notificationReference = db
+    .collection("notifications")
+    .doc(notificationId);
+
+  const notificationSnapshot =
+    await notificationReference.get();
+
+  /*
+  If notification already exists,
+  do not create another duplicate.
+  */
+
+  if (notificationSnapshot.exists) {
+    console.log(
+      "Notification already exists:",
+      notificationId
+    );
+
+    return notificationId;
   }
 
   const notificationData = {
@@ -178,15 +213,7 @@ async function createUserNotification({
       type || "general"
     ),
 
-    /*
-    Main field used by Notifications.jsx
-    */
-
     targetUserId: String(userId),
-
-    /*
-    Extra compatible fields
-    */
 
     userId: String(userId),
 
@@ -194,28 +221,21 @@ async function createUserNotification({
 
     targetRole: "user",
 
-    referralId: referralId || "",
+    referralId: String(referralId),
 
-    relatedId: referralId || "",
+    relatedId: String(referralId),
 
     relatedCollection: "referrals",
 
-    rejectionReason:
-      rejectionReason || "",
-
-    /*
-    Read status fields
-    */
+    rejectionReason: String(
+      rejectionReason || ""
+    ),
 
     read: false,
 
     isRead: false,
 
     status: "unread",
-
-    /*
-    Firebase server timestamps
-    */
 
     createdAt:
       admin.firestore.FieldValue.serverTimestamp(),
@@ -224,16 +244,137 @@ async function createUserNotification({
       admin.firestore.FieldValue.serverTimestamp(),
   };
 
-  const notificationReference = await db
-    .collection("notifications")
-    .add(notificationData);
+  await notificationReference.create(
+    notificationData
+  );
 
   console.log(
     "Notification created:",
-    notificationReference.id
+    notificationId
   );
 
-  return notificationReference.id;
+  return notificationId;
+}
+
+/*
+=========================================
+CREATE NOTIFICATION FROM REFERRAL STATUS
+=========================================
+*/
+
+async function createReferralStatusNotification({
+  referralId,
+  referralData,
+  status,
+}) {
+  const referrerId =
+    referralData.referrerId ||
+    referralData.referrerUid ||
+    referralData.userId ||
+    "";
+
+  if (!referrerId) {
+    console.warn(
+      "Referral notification skipped. Referrer ID missing.",
+      referralId
+    );
+
+    return null;
+  }
+
+  const rejectionReason = String(
+    referralData.rejectionReason ||
+      referralData.rejectedReason ||
+      referralData.reason ||
+      ""
+  ).trim();
+
+  if (status === "accepted" || status === "approved") {
+    return createUserNotification({
+      userId: referrerId,
+
+      title: "Referral Accepted",
+
+      message:
+        "Good news! Your referred provider has been accepted by VELZO.",
+
+      type: "referral-accepted",
+
+      referralId,
+    });
+  }
+
+  if (status === "rejected") {
+    const friendlyReason =
+      getFriendlyRejectionReason(
+        rejectionReason
+      );
+
+    return createUserNotification({
+      userId: referrerId,
+
+      title: "Referral Rejected",
+
+      message:
+        `Your referral was rejected. Reason: ${friendlyReason}`,
+
+      type: "referral-rejected",
+
+      referralId,
+
+      rejectionReason: friendlyReason,
+    });
+  }
+
+  return null;
+}
+
+/*
+=========================================
+FRIENDLY REJECTION REASON
+=========================================
+*/
+
+function getFriendlyRejectionReason(reason) {
+  const cleanReason = String(
+    reason || ""
+  ).trim();
+
+  if (!cleanReason) {
+    return "The referral could not be approved. Please check the provider details.";
+  }
+
+  const normalizedReason = cleanReason
+    .toLowerCase()
+    .replace(/[-\s]+/g, "_");
+
+  const friendlyReasons = {
+    invalid_information:
+      "The information provided for this provider is invalid. Please check the details and try again.",
+
+    phone_already_exists:
+      "This phone number is already registered with VELZO. Please refer a different provider.",
+
+    provider_already_exists:
+      "This provider is already registered with VELZO.",
+
+    duplicate:
+      "This referral appears to be a duplicate referral.",
+
+    incomplete_information:
+      "Some provider details are missing. Please check the information and try again.",
+
+    invalid_phone:
+      "The provider phone number is invalid. Please check the number and try again.",
+
+    invalid_union_id:
+      "The Union / Labour ID is invalid. Please check the details and try again.",
+  };
+
+  return (
+    friendlyReasons[normalizedReason] ||
+    cleanReason
+  );
 }
 
 /*
@@ -243,10 +384,6 @@ ADMIN ACCESS CHECK
 */
 
 function checkAdminAccess(request) {
-  /*
-  Firebase Authentication check
-  */
-
   if (!request.auth) {
     throw new HttpsError(
       "unauthenticated",
@@ -259,10 +396,6 @@ function checkAdminAccess(request) {
     request.auth.token?.userRole ||
     "";
 
-  /*
-  If role is available, verify it.
-  */
-
   if (
     role &&
     !isAdminRole(role)
@@ -272,12 +405,6 @@ function checkAdminAccess(request) {
       "Admin access required."
     );
   }
-
-  /*
-  If your admin authentication uses
-  another method, this still allows
-  authenticated admin calls.
-  */
 }
 
 /*
@@ -324,10 +451,6 @@ exports.verifyVelzoUser = onCall(
       const userData =
         foundUser.data;
 
-      /*
-      Account status check
-      */
-
       if (
         userData.isActive === false ||
         userData.status === "disabled" ||
@@ -339,16 +462,8 @@ exports.verifyVelzoUser = onCall(
         );
       }
 
-      /*
-      Existing Firebase UID from mobile app
-      */
-
       let firebaseUid =
         userData.uid;
-
-      /*
-      If uid is missing, create a stable UID.
-      */
 
       if (
         typeof firebaseUid !== "string" ||
@@ -357,10 +472,6 @@ exports.verifyVelzoUser = onCall(
         firebaseUid =
           `velzo-${cleanPhone}`;
       }
-
-      /*
-      Create Firebase custom token
-      */
 
       const customToken =
         await admin
@@ -377,10 +488,6 @@ exports.verifyVelzoUser = onCall(
               velzoUser: true,
             }
           );
-
-      /*
-      Return safe data only
-      */
 
       return {
         success: true,
@@ -478,13 +585,6 @@ exports.approveReferral = onCall(
         );
       }
 
-      const referralData =
-        referralSnapshot.data() || {};
-
-      /*
-      Update referral status
-      */
-
       await referralReference.update({
         status: "accepted",
 
@@ -497,26 +597,6 @@ exports.approveReferral = onCall(
 
         updatedAt:
           admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      /*
-      Create notification for referrer
-      */
-
-      await createUserNotification({
-        userId:
-          referralData.referrerId,
-
-        title:
-          "Referral Accepted",
-
-        message:
-          "Good news! Your referred provider has been accepted by VELZO.",
-
-        type:
-          "referral-accepted",
-
-        referralId,
       });
 
       return {
@@ -602,13 +682,6 @@ exports.rejectReferral = onCall(
         );
       }
 
-      const referralData =
-        referralSnapshot.data() || {};
-
-      /*
-      Update referral as rejected
-      */
-
       await referralReference.update({
         status: "rejected",
 
@@ -633,28 +706,6 @@ exports.rejectReferral = onCall(
 
         updatedAt:
           admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      /*
-      Create notification for referrer
-      */
-
-      await createUserNotification({
-        userId:
-          referralData.referrerId,
-
-        title:
-          "Referral Rejected",
-
-        message:
-          `Your referral was rejected because: ${reason}`,
-
-        type:
-          "referral-rejected",
-
-        referralId,
-
-        rejectionReason: reason,
       });
 
       return {
@@ -682,3 +733,99 @@ exports.rejectReferral = onCall(
     }
   }
 );
+
+/*
+=========================================
+AUTOMATIC REFERRAL NOTIFICATION TRIGGER
+=========================================
+*/
+
+exports.onReferralStatusChanged =
+  onDocumentUpdated(
+    {
+      document: "referrals/{referralId}",
+      region: "asia-south1",
+    },
+    async (event) => {
+      try {
+        const beforeData =
+          event.data?.before?.data() || {};
+
+        const afterData =
+          event.data?.after?.data() || {};
+
+        const referralId =
+          event.params.referralId;
+
+        const beforeStatus = String(
+          beforeData.status || ""
+        )
+          .trim()
+          .toLowerCase();
+
+        const afterStatus = String(
+          afterData.status || ""
+        )
+          .trim()
+          .toLowerCase();
+
+        /*
+        Only create notification when status
+        changes to accepted/approved/rejected.
+        */
+
+        const validStatuses = [
+          "accepted",
+          "approved",
+          "rejected",
+        ];
+
+        if (
+          !validStatuses.includes(
+            afterStatus
+          )
+        ) {
+          console.log(
+            "No notification required for status:",
+            afterStatus
+          );
+
+          return null;
+        }
+
+        if (
+          beforeStatus === afterStatus
+        ) {
+          console.log(
+            "Status did not change:",
+            afterStatus
+          );
+
+          return null;
+        }
+
+        await createReferralStatusNotification({
+          referralId,
+
+          referralData: afterData,
+
+          status: afterStatus,
+        });
+
+        console.log(
+          "Referral status notification processed:",
+          referralId,
+          afterStatus
+        );
+
+        return null;
+      } catch (error) {
+        console.error(
+          "Referral notification trigger error:",
+          error
+        );
+
+        return null;
+      }
+    }
+  );
