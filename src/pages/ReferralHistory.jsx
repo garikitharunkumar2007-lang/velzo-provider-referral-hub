@@ -111,7 +111,11 @@ function getReferralReward(referral) {
       value !== ""
   );
 
-  const numericReward = Number(rewardValue);
+  const numericReward = Number(
+    String(rewardValue ?? 0)
+      .replace(/₹/g, "")
+      .replace(/,/g, "")
+  );
 
   if (!Number.isFinite(numericReward)) {
     return 0;
@@ -158,6 +162,19 @@ function getUnionId(referral) {
     referral.labourID ||
     referral.unionLabourId ||
     "Not provided"
+  );
+}
+
+/* -------------------------------------------------
+   Get rejection reason from possible field names
+------------------------------------------------- */
+function getRejectionReason(referral) {
+  return (
+    referral.rejectionReason ||
+    referral.rejectReason ||
+    referral.rejectedReason ||
+    referral.reason ||
+    "No rejection reason was provided."
   );
 }
 
@@ -214,7 +231,9 @@ export default function ReferralHistory() {
               })
               .sort((a, b) => {
                 const getTime = (value) => {
-                  if (!value) return 0;
+                  if (!value) {
+                    return 0;
+                  }
 
                   if (
                     typeof value?.toMillis === "function"
@@ -224,6 +243,10 @@ export default function ReferralHistory() {
 
                   if (value?.seconds) {
                     return value.seconds * 1000;
+                  }
+
+                  if (value instanceof Date) {
+                    return value.getTime();
                   }
 
                   const parsedDate = new Date(value);
@@ -297,9 +320,22 @@ export default function ReferralHistory() {
             const phone = getProviderPhone(referral);
             const unionId = getUnionId(referral);
 
+            const status = normalizeStatus(
+              referral.status ||
+                referral.paymentStatus ||
+                "pending"
+            );
+
+            const isRejected = status === "rejected";
+
+            const rejectionReason =
+              getRejectionReason(referral);
+
             return (
               <div
-                className="history-card"
+                className={`history-card ${
+                  isRejected ? "rejected-card" : ""
+                }`}
                 key={referral.id}
               >
                 <div className="history-top">
@@ -311,13 +347,7 @@ export default function ReferralHistory() {
                     <h2>{providerName}</h2>
                   </div>
 
-                  <StatusBadge
-                    value={
-                      referral.status ||
-                      referral.paymentStatus ||
-                      "pending"
-                    }
-                  />
+                  <StatusBadge value={status} />
                 </div>
 
                 <div className="history-details">
@@ -347,6 +377,19 @@ export default function ReferralHistory() {
                     </strong>
                   </div>
                 </div>
+
+                {/* -------------------------------------------------
+                   Rejection reason shown only for rejected referrals
+                ------------------------------------------------- */}
+                {isRejected && (
+                  <div className="rejection-reason-box">
+                    <div className="rejection-reason-title">
+                      Rejection Reason
+                    </div>
+
+                    <p>{rejectionReason}</p>
+                  </div>
+                )}
               </div>
             );
           })}
