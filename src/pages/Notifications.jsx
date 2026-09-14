@@ -1,302 +1,576 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useAuth } from "../hooks/useAuth";
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import {
-  getCollection,
-  updateDocument,
-} from "../firebase/firestoreConverters";
+  collection,
+  onSnapshot,
+  query,
+  updateDoc,
+  doc,
+  where,
+} from "firebase/firestore";
+
+import {
+  useAuth,
+} from "../hooks/useAuth";
+
+import {
+  db,
+} from "../firebase/firebaseConfig";
+
 import "./Notifications.css";
+
+/* =====================================================
+   CONSTANTS
+===================================================== */
 
 const NOTIFICATIONS_COLLECTION = "notifications";
 
+/* =====================================================
+   NORMALIZE VALUE
+===================================================== */
+
+function normalizeValue(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/_/g, "-");
+}
+
+/* =====================================================
+   DATE HELPER
+===================================================== */
+
 function getNotificationDate(notification) {
   const value =
-    notification.createdAt ||
-    notification.timestamp ||
-    notification.date ||
-    notification.updatedAt;
+    notification?.createdAt ||
+    notification?.updatedAt ||
+    notification?.timestamp;
 
-  if (!value) return null;
-
-  if (typeof value?.toDate === "function") {
-    return value.toDate();
+  if (!value) {
+    return null;
   }
 
-  if (value?.seconds) {
-    return new Date(value.seconds * 1000);
+  try {
+    if (typeof value.toDate === "function") {
+      return value.toDate();
+    }
+
+    if (value?.seconds) {
+      return new Date(value.seconds * 1000);
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    return date;
+  } catch {
+    return null;
   }
-
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function formatNotificationDate(notification) {
   const date = getNotificationDate(notification);
 
   if (!date) {
-    return "Recently";
+    return "Just now";
   }
 
   return date.toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+    dateStyle: "medium",
+    timeStyle: "short",
   });
 }
 
+/* =====================================================
+   NOTIFICATION TYPE
+===================================================== */
+
 function getNotificationType(notification) {
-  const type = String(
-    notification.type ||
-      notification.category ||
-      notification.notificationType ||
+  return normalizeValue(
+    notification?.type ||
+      notification?.notificationType ||
       "general"
-  ).toLowerCase();
+  );
+}
+
+/* =====================================================
+   FRIENDLY REJECTION REASON
+===================================================== */
+
+function getFriendlyRejectionReason(reason) {
+  const originalReason = String(
+    reason || ""
+  ).trim();
+
+  if (!originalReason) {
+    return "Your referral could not be approved. Please contact VELZO support for more details.";
+  }
+
+  const normalizedReason = originalReason
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/-/g, "_");
+
+  const reasonMap = {
+    phone_already_exists:
+      "This phone number is already registered with VELZO. Please refer a different provider.",
+
+    invalid_information:
+      "The information provided for this provider is invalid. Please check the details and try again.",
+
+    invalid_info:
+      "The information provided for this provider is invalid. Please check the details and try again.",
+
+    invalid_data:
+      "The provider information could not be verified. Please check the submitted details.",
+
+    duplicate_referral:
+      "This provider has already been referred to VELZO.",
+
+    provider_already_registered:
+      "This provider is already registered with VELZO.",
+
+    incomplete_information:
+      "Some required provider information is missing. Please check the details and try again.",
+
+    invalid_phone:
+      "The provider phone number is invalid. Please submit a valid phone number.",
+
+    provider_not_found:
+      "The provider details could not be verified.",
+
+    not_eligible:
+      "This provider does not currently meet the referral eligibility requirements.",
+  };
+
+  return (
+    reasonMap[normalizedReason] ||
+    originalReason
+  );
+}
+
+/* =====================================================
+   FRIENDLY MESSAGE
+===================================================== */
+
+function getFriendlyMessage(notification) {
+  const rawMessage = String(
+    notification?.message ||
+      notification?.body ||
+      notification?.description ||
+      "You have a new update from VELZO."
+  );
+
+  const type = getNotificationType(notification);
 
   if (
-    type.includes("payment") ||
-    type.includes("earning") ||
-    type.includes("reward")
+    type === "referral-rejected" ||
+    type === "referral_rejected"
   ) {
-    return "payment";
+    const reason =
+      notification?.rejectionReason ||
+      notification?.reason ||
+      rawMessage
+        .replace(
+          /^your referral was rejected because:\s*/i,
+          ""
+        )
+        .trim();
+
+    return `Your referral was rejected because: ${getFriendlyRejectionReason(
+      reason
+    )}`;
   }
 
   if (
-    type.includes("referral") ||
-    type.includes("provider") ||
-    type.includes("verification")
+    type === "referral-accepted" ||
+    type === "referral_accepted" ||
+    type === "referral-approved" ||
+    type === "referral_approved"
   ) {
-    return "referral";
+    return (
+      notification?.message ||
+      "Good news! Your referred provider has been accepted by VELZO."
+    );
+  }
+
+  if (
+    type === "payment-completed" ||
+    type === "payment_completed" ||
+    type === "payment-paid" ||
+    type === "payment_paid"
+  ) {
+    return (
+      notification?.message ||
+      "Your referral reward payment has been completed."
+    );
+  }
+
+  return rawMessage;
+}
+
+/* =====================================================
+   NOTIFICATION TITLE
+===================================================== */
+
+function getFriendlyTitle(notification) {
+  const type = getNotificationType(notification);
+
+  if (
+    type === "referral-rejected" ||
+    type === "referral_rejected"
+  ) {
+    return "Referral Rejected";
+  }
+
+  if (
+    type === "referral-accepted" ||
+    type === "referral_accepted"
+  ) {
+    return "Referral Accepted";
+  }
+
+  if (
+    type === "referral-approved" ||
+    type === "referral_approved"
+  ) {
+    return "Referral Approved";
+  }
+
+  if (
+    type === "payment-completed" ||
+    type === "payment_completed"
+  ) {
+    return "Payment Completed";
+  }
+
+  if (
+    type === "payment-paid" ||
+    type === "payment_paid"
+  ) {
+    return "Payment Paid";
+  }
+
+  return (
+    notification?.title ||
+    notification?.heading ||
+    "VELZO Notification"
+  );
+}
+
+/* =====================================================
+   NOTIFICATION ICON
+===================================================== */
+
+function getNotificationIcon(notification) {
+  const type = getNotificationType(notification);
+
+  if (
+    type.includes("rejected") ||
+    type.includes("error")
+  ) {
+    return "❌";
+  }
+
+  if (
+    type.includes("accepted") ||
+    type.includes("approved") ||
+    type.includes("success")
+  ) {
+    return "✅";
+  }
+
+  if (
+    type.includes("payment") ||
+    type.includes("reward")
+  ) {
+    return "💰";
   }
 
   if (
     type.includes("complaint") ||
-    type.includes("support") ||
-    type.includes("issue")
+    type.includes("warning")
   ) {
-    return "complaint";
+    return "⚠️";
   }
 
-  if (
-    type.includes("success") ||
-    type.includes("approved") ||
-    type.includes("accepted")
-  ) {
-    return "success";
-  }
-
-  if (
-    type.includes("warning") ||
-    type.includes("rejected") ||
-    type.includes("failed")
-  ) {
-    return "warning";
-  }
-
-  return "general";
+  return "🔔";
 }
 
-function getNotificationIcon(type) {
-  switch (type) {
-    case "payment":
-      return "₹";
-
-    case "referral":
-      return "🤝";
-
-    case "complaint":
-      return "🛠️";
-
-    case "success":
-      return "✓";
-
-    case "warning":
-      return "!";
-
-    default:
-      return "🔔";
-  }
-}
-
-function isNotificationForUser(notification, user) {
-  if (!user) return false;
-
-  const currentUserId = user.uid || user.id || "";
-  const currentUserPhone =
-    user.phoneNumber || user.phone || user.mobile || "";
-
-  const notificationUserId =
-    notification.userId ||
-    notification.uid ||
-    notification.recipientId ||
-    notification.receiverId ||
-    notification.createdFor;
-
-  const notificationPhone =
-    notification.phoneNumber ||
-    notification.phone ||
-    notification.mobile ||
-    notification.recipientPhone;
-
-  /*
-   * If the notification has no receiver information,
-   * do not display it to every user.
-   */
-  if (!notificationUserId && !notificationPhone) {
-    return false;
-  }
-
-  if (
-    notificationUserId &&
-    currentUserId &&
-    String(notificationUserId) === String(currentUserId)
-  ) {
-    return true;
-  }
-
-  if (
-    notificationPhone &&
-    currentUserPhone &&
-    String(notificationPhone) === String(currentUserPhone)
-  ) {
-    return true;
-  }
-
-  return false;
-}
+/* =====================================================
+   READ STATUS
+===================================================== */
 
 function isRead(notification) {
   return (
-    notification.read === true ||
-    notification.isRead === true ||
-    notification.status === "read"
+    notification?.read === true ||
+    notification?.isRead === true ||
+    notification?.status === "read"
   );
 }
+
+/* =====================================================
+   CHECK USER NOTIFICATION
+===================================================== */
+
+function isNotificationForUser(
+  notification,
+  user
+) {
+  if (!notification || !user) {
+    return false;
+  }
+
+  const userId =
+    user.uid ||
+    user.id ||
+    user.userId ||
+    "";
+
+  const targetUserId =
+    notification.targetUserId ||
+    notification.userId ||
+    notification.recipientId ||
+    notification.recipientUID ||
+    notification.referrerId ||
+    "";
+
+  const targetRole = normalizeValue(
+    notification.targetRole ||
+      notification.audience ||
+      ""
+  );
+
+  const isForCurrentUser =
+    Boolean(userId) &&
+    String(targetUserId) === String(userId);
+
+  const isForAllUsers =
+    targetRole === "all" ||
+    notification.audience === "all";
+
+  return (
+    isForCurrentUser ||
+    isForAllUsers
+  );
+}
+
+/* =====================================================
+   COMPONENT
+===================================================== */
 
 export default function Notifications() {
   const { user } = useAuth();
 
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [markingId, setMarkingId] = useState("");
-  const [markingAll, setMarkingAll] = useState(false);
+  const [notifications, setNotifications] =
+    useState([]);
 
-  const loadNotifications = async () => {
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
+
+  const [filter, setFilter] =
+    useState("all");
+
+  const [markingId, setMarkingId] =
+    useState("");
+
+  const [markingAll, setMarkingAll] =
+    useState(false);
+
+  /* =================================================
+     REAL-TIME FIRESTORE LISTENER
+  ================================================= */
+
+  useEffect(() => {
     if (!user) {
       setNotifications([]);
       setLoading(false);
-      return;
+      return undefined;
     }
 
-    try {
-      setLoading(true);
-      setError("");
+    const userId =
+      user.uid ||
+      user.id ||
+      user.userId ||
+      "";
 
-      const response = await getCollection(NOTIFICATIONS_COLLECTION);
-
-      const notificationList = Array.isArray(response)
-        ? response
-        : response?.data || response?.items || [];
-
-      const userNotifications = notificationList
-        .filter((notification) =>
-          isNotificationForUser(notification, user)
-        )
-        .sort((first, second) => {
-          const firstDate = getNotificationDate(first)?.getTime() || 0;
-          const secondDate = getNotificationDate(second)?.getTime() || 0;
-
-          return secondDate - firstDate;
-        });
-
-      setNotifications(userNotifications);
-    } catch (loadError) {
-      console.error("Failed to load notifications:", loadError);
-      setError(
-        "Unable to load notifications. Please check your connection and try again."
-      );
-    } finally {
+    if (!userId) {
+      setNotifications([]);
       setLoading(false);
+      setError(
+        "Unable to identify your account."
+      );
+      return undefined;
     }
-  };
 
-  useEffect(() => {
-    loadNotifications();
+    setLoading(true);
+    setError("");
+
+    const notificationsQuery = query(
+      collection(
+        db,
+        NOTIFICATIONS_COLLECTION
+      ),
+      where(
+        "targetUserId",
+        "==",
+        userId
+      )
+    );
+
+    const unsubscribe = onSnapshot(
+      notificationsQuery,
+      (snapshot) => {
+        const notificationList =
+          snapshot.docs
+            .map((documentSnapshot) => ({
+              id: documentSnapshot.id,
+              ...documentSnapshot.data(),
+            }))
+            .sort((first, second) => {
+              const firstDate =
+                getNotificationDate(first)?.getTime() ||
+                0;
+
+              const secondDate =
+                getNotificationDate(second)?.getTime() ||
+                0;
+
+              return secondDate - firstDate;
+            });
+
+        setNotifications(notificationList);
+        setLoading(false);
+      },
+      (snapshotError) => {
+        console.error(
+          "Notification listener error:",
+          snapshotError
+        );
+
+        setLoading(false);
+
+        if (
+          snapshotError?.code ===
+          "permission-denied"
+        ) {
+          setError(
+            "You do not have permission to view notifications."
+          );
+        } else {
+          setError(
+            "Unable to load notifications. Please try again."
+          );
+        }
+      }
+    );
+
+    return () => unsubscribe();
   }, [user]);
 
+  /* =================================================
+     UNREAD COUNT
+  ================================================= */
+
   const unreadCount = useMemo(() => {
-    return notifications.filter((notification) => !isRead(notification))
-      .length;
+    return notifications.filter(
+      (notification) => !isRead(notification)
+    ).length;
   }, [notifications]);
+
+  /* =================================================
+     FILTERED NOTIFICATIONS
+  ================================================= */
 
   const filteredNotifications = useMemo(() => {
     if (filter === "unread") {
-      return notifications.filter((notification) => !isRead(notification));
+      return notifications.filter(
+        (notification) => !isRead(notification)
+      );
     }
 
     if (filter === "read") {
-      return notifications.filter((notification) => isRead(notification));
+      return notifications.filter(
+        (notification) => isRead(notification)
+      );
     }
 
     return notifications;
   }, [notifications, filter]);
 
-  const markAsRead = async (notification) => {
-    const notificationId =
-      notification.id ||
-      notification.notificationId ||
-      notification.documentId;
+  /* =================================================
+     MARK ONE AS READ
+  ================================================= */
 
-    if (!notificationId || isRead(notification)) {
+  async function markAsRead(notification) {
+    const notificationId =
+      notification?.id ||
+      notification?.notificationId ||
+      notification?.documentId;
+
+    if (
+      !notificationId ||
+      isRead(notification)
+    ) {
       return;
     }
 
     try {
       setMarkingId(notificationId);
+      setError("");
 
-      await updateDocument(NOTIFICATIONS_COLLECTION, notificationId, {
-        read: true,
-        isRead: true,
-        status: "read",
-        readAt: new Date(),
-      });
-
-      setNotifications((currentNotifications) =>
-        currentNotifications.map((item) => {
-          const itemId =
-            item.id ||
-            item.notificationId ||
-            item.documentId;
-
-          if (String(itemId) === String(notificationId)) {
-            return {
-              ...item,
-              read: true,
-              isRead: true,
-              status: "read",
-            };
-          }
-
-          return item;
-        })
+      await updateDoc(
+        doc(
+          db,
+          NOTIFICATIONS_COLLECTION,
+          notificationId
+        ),
+        {
+          read: true,
+          isRead: true,
+          status: "read",
+          readAt: new Date(),
+        }
       );
     } catch (readError) {
-      console.error("Failed to mark notification as read:", readError);
-      setError("Unable to update notification status.");
+      console.error(
+        "Failed to mark notification as read:",
+        readError
+      );
+
+      setError(
+        "Unable to update notification status."
+      );
     } finally {
       setMarkingId("");
     }
-  };
+  }
 
-  const markAllAsRead = async () => {
-    const unreadNotifications = notifications.filter(
-      (notification) => !isRead(notification)
-    );
+  /* =================================================
+     MARK ALL AS READ
+  ================================================= */
 
-    if (unreadNotifications.length === 0) {
+  async function markAllAsRead() {
+    const unreadNotifications =
+      notifications.filter(
+        (notification) => !isRead(notification)
+      );
+
+    if (
+      unreadNotifications.length === 0
+    ) {
       return;
     }
 
@@ -305,30 +579,32 @@ export default function Notifications() {
       setError("");
 
       await Promise.all(
-        unreadNotifications.map(async (notification) => {
-          const notificationId =
-            notification.id ||
-            notification.notificationId ||
-            notification.documentId;
+        unreadNotifications.map(
+          (notification) => {
+            const notificationId =
+              notification.id ||
+              notification.notificationId ||
+              notification.documentId;
 
-          if (!notificationId) return;
+            if (!notificationId) {
+              return null;
+            }
 
-          return updateDocument(NOTIFICATIONS_COLLECTION, notificationId, {
-            read: true,
-            isRead: true,
-            status: "read",
-            readAt: new Date(),
-          });
-        })
-      );
-
-      setNotifications((currentNotifications) =>
-        currentNotifications.map((notification) => ({
-          ...notification,
-          read: true,
-          isRead: true,
-          status: "read",
-        }))
+            return updateDoc(
+              doc(
+                db,
+                NOTIFICATIONS_COLLECTION,
+                notificationId
+              ),
+              {
+                read: true,
+                isRead: true,
+                status: "read",
+                readAt: new Date(),
+              }
+            );
+          }
+        )
       );
     } catch (markAllError) {
       console.error(
@@ -336,24 +612,17 @@ export default function Notifications() {
         markAllError
       );
 
-      setError("Unable to mark all notifications as read.");
+      setError(
+        "Unable to mark all notifications as read."
+      );
     } finally {
       setMarkingAll(false);
     }
-  };
+  }
 
-  const deleteNotificationLocally = (notificationId) => {
-    setNotifications((currentNotifications) =>
-      currentNotifications.filter((notification) => {
-        const itemId =
-          notification.id ||
-          notification.notificationId ||
-          notification.documentId;
-
-        return String(itemId) !== String(notificationId);
-      })
-    );
-  };
+  /* =================================================
+     LOADING SCREEN
+  ================================================= */
 
   if (loading) {
     return (
@@ -368,15 +637,22 @@ export default function Notifications() {
     );
   }
 
+  /* =================================================
+     PAGE
+  ================================================= */
+
   return (
     <main className="notifications-page">
       <section className="notifications-container">
         <div className="notifications-header">
           <div>
-            <p className="notifications-eyebrow">VELZO UPDATES</p>
+            <p className="notifications-eyebrow">
+              VELZO UPDATES
+            </p>
 
             <h1 className="notifications-title">
               Notifications
+
               {unreadCount > 0 && (
                 <span className="notifications-count">
                   {unreadCount}
@@ -385,31 +661,28 @@ export default function Notifications() {
             </h1>
 
             <p className="notifications-subtitle">
-              Stay updated with your referrals, rewards and account activity.
+              Stay updated with your referrals,
+              rewards and account activity.
             </p>
           </div>
 
           <button
             type="button"
             className="notifications-refresh-button"
-            onClick={loadNotifications}
-            disabled={loading}
+            onClick={() => {
+              window.location.reload();
+            }}
           >
             ↻ Refresh
           </button>
         </div>
 
         {error && (
-          <div className="notifications-error" role="alert">
-            <span>{error}</span>
-
-            <button
-              type="button"
-              onClick={() => setError("")}
-              aria-label="Close error"
-            >
-              ×
-            </button>
+          <div
+            className="notifications-error"
+            role="alert"
+          >
+            {error}
           </div>
         )}
 
@@ -458,15 +731,22 @@ export default function Notifications() {
             type="button"
             className="mark-all-button"
             onClick={markAllAsRead}
-            disabled={markingAll || unreadCount === 0}
+            disabled={
+              markingAll ||
+              unreadCount === 0
+            }
           >
-            {markingAll ? "Updating..." : "Mark all as read"}
+            {markingAll
+              ? "Updating..."
+              : "Mark all as read"}
           </button>
         </div>
 
         {filteredNotifications.length === 0 ? (
           <div className="notifications-empty">
-            <div className="notifications-empty-icon">🔔</div>
+            <div className="notifications-empty-icon">
+              🔔
+            </div>
 
             <h2>
               {filter === "unread"
@@ -482,93 +762,100 @@ export default function Notifications() {
           </div>
         ) : (
           <div className="notifications-list">
-            {filteredNotifications.map((notification, index) => {
-              const notificationId =
-                notification.id ||
-                notification.notificationId ||
-                notification.documentId ||
-                `notification-${index}`;
+            {filteredNotifications.map(
+              (notification) => {
+                const notificationId =
+                  notification.id;
 
-              const notificationType = getNotificationType(
-                notification
-              );
+                const read =
+                  isRead(notification);
 
-              const read = isRead(notification);
+                const notificationType =
+                  getNotificationType(
+                    notification
+                  );
 
-              const title =
-                notification.title ||
-                notification.heading ||
-                notification.subject ||
-                "Velzo Notification";
-
-              const message =
-                notification.message ||
-                notification.body ||
-                notification.description ||
-                notification.text ||
-                "You have a new update from Velzo.";
-
-              return (
-                <article
-                  key={notificationId}
-                  className={
-                    read
-                      ? "notification-card read"
-                      : "notification-card unread"
-                  }
-                  onClick={() => markAsRead(notification)}
-                >
-                  <div
-                    className={`notification-icon ${notificationType}`}
-                    aria-hidden="true"
+                return (
+                  <article
+                    key={notificationId}
+                    className={
+                      read
+                        ? "notification-card read"
+                        : "notification-card unread"
+                    }
+                    onClick={() =>
+                      markAsRead(notification)
+                    }
                   >
-                    {getNotificationIcon(notificationType)}
-                  </div>
-
-                  <div className="notification-content">
-                    <div className="notification-top-row">
-                      <h3 className="notification-title-text">
-                        {title}
-                      </h3>
-
-                      {!read && (
-                        <span className="notification-unread-dot" />
+                    <div
+                      className={`notification-icon ${notificationType}`}
+                      aria-hidden="true"
+                    >
+                      {getNotificationIcon(
+                        notification
                       )}
                     </div>
 
-                    <p className="notification-message">{message}</p>
+                    <div className="notification-content">
+                      <div className="notification-top-row">
+                        <h3 className="notification-title-text">
+                          {getFriendlyTitle(
+                            notification
+                          )}
+                        </h3>
 
-                    <div className="notification-bottom-row">
-                      <span className="notification-date">
-                        {formatNotificationDate(notification)}
-                      </span>
+                        {!read && (
+                          <span className="notification-unread-dot" />
+                        )}
+                      </div>
 
-                      {!read && (
-                        <button
-                          type="button"
-                          className="notification-read-button"
-                          disabled={markingId === notificationId}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            markAsRead(notification);
-                          }}
-                        >
-                          {markingId === notificationId
-                            ? "Updating..."
-                            : "Mark as read"}
-                        </button>
-                      )}
+                      <p className="notification-message">
+                        {getFriendlyMessage(
+                          notification
+                        )}
+                      </p>
 
-                      {read && (
-                        <span className="notification-read-label">
-                          ✓ Read
+                      <div className="notification-bottom-row">
+                        <span className="notification-date">
+                          {formatNotificationDate(
+                            notification
+                          )}
                         </span>
-                      )}
+
+                        {!read && (
+                          <button
+                            type="button"
+                            className="notification-read-button"
+                            disabled={
+                              markingId ===
+                              notificationId
+                            }
+                            onClick={(event) => {
+                              event.stopPropagation();
+
+                              markAsRead(
+                                notification
+                              );
+                            }}
+                          >
+                            {markingId ===
+                            notificationId
+                              ? "Updating..."
+                              : "Mark as read"}
+                          </button>
+                        )}
+
+                        {read && (
+                          <span className="notification-read-label">
+                            ✓ Read
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </article>
-              );
-            })}
+                  </article>
+                );
+              }
+            )}
           </div>
         )}
       </section>

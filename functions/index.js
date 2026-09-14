@@ -32,7 +32,10 @@ function normalizePhone(value) {
   }
 
   // 91 + 10 digit Indian number
-  if (digits.length === 12 && digits.startsWith("91")) {
+  if (
+    digits.length === 12 &&
+    digits.startsWith("91")
+  ) {
     return digits.substring(2);
   }
 
@@ -95,7 +98,10 @@ async function findUserByPhone(phone) {
   const documentIds = getPhoneDocumentIds(phone);
 
   for (const documentId of documentIds) {
-    const userRef = db.collection("users").doc(documentId);
+    const userRef = db
+      .collection("users")
+      .doc(documentId);
+
     const userSnapshot = await userRef.get();
 
     if (userSnapshot.exists) {
@@ -123,7 +129,8 @@ async function findUserByPhone(phone) {
     .get();
 
   if (!phoneQuery.empty) {
-    const firstDocument = phoneQuery.docs[0];
+    const firstDocument =
+      phoneQuery.docs[0];
 
     return {
       documentId: firstDocument.id,
@@ -133,6 +140,144 @@ async function findUserByPhone(phone) {
   }
 
   return null;
+}
+
+/*
+=========================================
+CREATE USER NOTIFICATION
+=========================================
+*/
+
+async function createUserNotification({
+  userId,
+  title,
+  message,
+  type,
+  referralId,
+  rejectionReason = "",
+}) {
+  if (!userId) {
+    console.warn(
+      "Notification skipped: userId is missing."
+    );
+
+    return null;
+  }
+
+  const notificationData = {
+    title: String(
+      title || "VELZO Update"
+    ),
+
+    message: String(
+      message ||
+        "You have a new update from VELZO."
+    ),
+
+    type: String(
+      type || "general"
+    ),
+
+    /*
+    Main field used by Notifications.jsx
+    */
+
+    targetUserId: String(userId),
+
+    /*
+    Extra compatible fields
+    */
+
+    userId: String(userId),
+
+    recipientId: String(userId),
+
+    targetRole: "user",
+
+    referralId: referralId || "",
+
+    relatedId: referralId || "",
+
+    relatedCollection: "referrals",
+
+    rejectionReason:
+      rejectionReason || "",
+
+    /*
+    Read status fields
+    */
+
+    read: false,
+
+    isRead: false,
+
+    status: "unread",
+
+    /*
+    Firebase server timestamps
+    */
+
+    createdAt:
+      admin.firestore.FieldValue.serverTimestamp(),
+
+    updatedAt:
+      admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  const notificationReference = await db
+    .collection("notifications")
+    .add(notificationData);
+
+  console.log(
+    "Notification created:",
+    notificationReference.id
+  );
+
+  return notificationReference.id;
+}
+
+/*
+=========================================
+ADMIN ACCESS CHECK
+=========================================
+*/
+
+function checkAdminAccess(request) {
+  /*
+  Firebase Authentication check
+  */
+
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "Please login as admin."
+    );
+  }
+
+  const role =
+    request.auth.token?.role ||
+    request.auth.token?.userRole ||
+    "";
+
+  /*
+  If role is available, verify it.
+  */
+
+  if (
+    role &&
+    !isAdminRole(role)
+  ) {
+    throw new HttpsError(
+      "permission-denied",
+      "Admin access required."
+    );
+  }
+
+  /*
+  If your admin authentication uses
+  another method, this still allows
+  authenticated admin calls.
+  */
 }
 
 /*
@@ -147,18 +292,27 @@ exports.verifyVelzoUser = onCall(
   },
   async (request) => {
     try {
-      const requestData = request.data || {};
+      const requestData =
+        request.data || {};
 
-      const cleanPhone = normalizePhone(requestData.phone);
+      const cleanPhone =
+        normalizePhone(
+          requestData.phone
+        );
 
-      if (!/^\d{10}$/.test(cleanPhone)) {
+      if (
+        !/^\d{10}$/.test(cleanPhone)
+      ) {
         throw new HttpsError(
           "invalid-argument",
           "Please enter a valid 10-digit phone number."
         );
       }
 
-      const foundUser = await findUserByPhone(cleanPhone);
+      const foundUser =
+        await findUserByPhone(
+          cleanPhone
+        );
 
       if (!foundUser) {
         throw new HttpsError(
@@ -167,7 +321,8 @@ exports.verifyVelzoUser = onCall(
         );
       }
 
-      const userData = foundUser.data;
+      const userData =
+        foundUser.data;
 
       /*
       Account status check
@@ -188,7 +343,8 @@ exports.verifyVelzoUser = onCall(
       Existing Firebase UID from mobile app
       */
 
-      let firebaseUid = userData.uid;
+      let firebaseUid =
+        userData.uid;
 
       /*
       If uid is missing, create a stable UID.
@@ -198,20 +354,29 @@ exports.verifyVelzoUser = onCall(
         typeof firebaseUid !== "string" ||
         firebaseUid.trim().length === 0
       ) {
-        firebaseUid = `velzo-${cleanPhone}`;
+        firebaseUid =
+          `velzo-${cleanPhone}`;
       }
 
       /*
       Create Firebase custom token
       */
 
-      const customToken = await admin
-        .auth()
-        .createCustomToken(firebaseUid, {
-          phone: cleanPhone,
-          role: userData.role || "user",
-          velzoUser: true,
-        });
+      const customToken =
+        await admin
+          .auth()
+          .createCustomToken(
+            firebaseUid,
+            {
+              phone: cleanPhone,
+
+              role:
+                userData.role ||
+                "user",
+
+              velzoUser: true,
+            }
+          );
 
       /*
       Return safe data only
@@ -233,7 +398,9 @@ exports.verifyVelzoUser = onCall(
             userData.displayName ||
             "",
 
-          role: userData.role || "user",
+          role:
+            userData.role ||
+            "user",
 
           photoURL:
             userData.photoURL ||
@@ -242,7 +409,8 @@ exports.verifyVelzoUser = onCall(
             "",
 
           isAdmin: isAdminRole(
-            userData.role || "user"
+            userData.role ||
+              "user"
           ),
         },
       };
@@ -252,13 +420,264 @@ exports.verifyVelzoUser = onCall(
         error
       );
 
-      if (error instanceof HttpsError) {
+      if (
+        error instanceof HttpsError
+      ) {
         throw error;
       }
 
       throw new HttpsError(
         "internal",
         "Unable to verify your VELZO account. Please try again."
+      );
+    }
+  }
+);
+
+/*
+=========================================
+APPROVE REFERRAL
+=========================================
+*/
+
+exports.approveReferral = onCall(
+  {
+    enforceAppCheck: false,
+  },
+  async (request) => {
+    try {
+      checkAdminAccess(request);
+
+      const requestData =
+        request.data || {};
+
+      const referralId =
+        requestData.referralId ||
+        requestData.id;
+
+      if (!referralId) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Referral ID is required."
+        );
+      }
+
+      const referralReference = db
+        .collection("referrals")
+        .doc(referralId);
+
+      const referralSnapshot =
+        await referralReference.get();
+
+      if (
+        !referralSnapshot.exists
+      ) {
+        throw new HttpsError(
+          "not-found",
+          "Referral not found."
+        );
+      }
+
+      const referralData =
+        referralSnapshot.data() || {};
+
+      /*
+      Update referral status
+      */
+
+      await referralReference.update({
+        status: "accepted",
+
+        rewardStatus: "approved",
+
+        paymentStatus: "pending",
+
+        acceptedAt:
+          admin.firestore.FieldValue.serverTimestamp(),
+
+        updatedAt:
+          admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      /*
+      Create notification for referrer
+      */
+
+      await createUserNotification({
+        userId:
+          referralData.referrerId,
+
+        title:
+          "Referral Accepted",
+
+        message:
+          "Good news! Your referred provider has been accepted by VELZO.",
+
+        type:
+          "referral-accepted",
+
+        referralId,
+      });
+
+      return {
+        success: true,
+
+        message:
+          "Referral accepted successfully.",
+      };
+    } catch (error) {
+      console.error(
+        "Approve referral error:",
+        error
+      );
+
+      if (
+        error instanceof HttpsError
+      ) {
+        throw error;
+      }
+
+      throw new HttpsError(
+        "internal",
+        "Unable to approve referral. Please try again."
+      );
+    }
+  }
+);
+
+/*
+=========================================
+REJECT REFERRAL
+=========================================
+*/
+
+exports.rejectReferral = onCall(
+  {
+    enforceAppCheck: false,
+  },
+  async (request) => {
+    try {
+      checkAdminAccess(request);
+
+      const requestData =
+        request.data || {};
+
+      const referralId =
+        requestData.referralId ||
+        requestData.id;
+
+      const reason = String(
+        requestData.reason ||
+          requestData.rejectionReason ||
+          ""
+      ).trim();
+
+      if (!referralId) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Referral ID is required."
+        );
+      }
+
+      if (!reason) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Rejection reason is required."
+        );
+      }
+
+      const referralReference = db
+        .collection("referrals")
+        .doc(referralId);
+
+      const referralSnapshot =
+        await referralReference.get();
+
+      if (
+        !referralSnapshot.exists
+      ) {
+        throw new HttpsError(
+          "not-found",
+          "Referral not found."
+        );
+      }
+
+      const referralData =
+        referralSnapshot.data() || {};
+
+      /*
+      Update referral as rejected
+      */
+
+      await referralReference.update({
+        status: "rejected",
+
+        rejectionReason: reason,
+
+        rewardStatus: "rejected",
+
+        paymentStatus: "not_paid",
+
+        reward: 0,
+
+        rewardAmount: 0,
+
+        rewardEarned: 0,
+
+        referralReward: 0,
+
+        paymentAmount: 0,
+
+        rejectedAt:
+          admin.firestore.FieldValue.serverTimestamp(),
+
+        updatedAt:
+          admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      /*
+      Create notification for referrer
+      */
+
+      await createUserNotification({
+        userId:
+          referralData.referrerId,
+
+        title:
+          "Referral Rejected",
+
+        message:
+          `Your referral was rejected because: ${reason}`,
+
+        type:
+          "referral-rejected",
+
+        referralId,
+
+        rejectionReason: reason,
+      });
+
+      return {
+        success: true,
+
+        message:
+          "Referral rejected successfully.",
+      };
+    } catch (error) {
+      console.error(
+        "Reject referral error:",
+        error
+      );
+
+      if (
+        error instanceof HttpsError
+      ) {
+        throw error;
+      }
+
+      throw new HttpsError(
+        "internal",
+        "Unable to reject referral. Please try again."
       );
     }
   }
