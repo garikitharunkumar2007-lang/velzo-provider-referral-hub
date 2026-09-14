@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VELZO</title>
+
+    <script>
+      const redirectPath =
+        "/velzo-provider-referral-hub/" +
+        window.location.pathname
+          .replace("/velzo-provider-referral-hub/", "")
+          .replace(/^\/+/, "");
+
+      const redirectQuery = window.location.search;
+      const redirectHash = window.location.hash;
+
+      sessionStorage.redirect =
+        redirectPath + redirectQuery + redirectHash;
+
+      window.location.replace(
+        "/velzo-provider-referral-hub/"
+      );
+    </script>
+  </head>
+
+  <body>
+    Redirecting to VELZO...
+  </body>
+</html>

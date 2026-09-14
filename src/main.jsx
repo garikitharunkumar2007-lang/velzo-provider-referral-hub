@@ -12,7 +12,7 @@ import "./styles/responsive.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/velzo-provider-referral-hub">
       <ThemeProvider>
         <AuthProvider>
           <App />
