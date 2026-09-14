@@ -18,19 +18,35 @@ import {
   uploadBytes,
 } from "firebase/storage";
 
-import { db, storage } from "../../firebase/firebaseConfig";
+import {
+  db,
+  storage,
+} from "../../firebase/firebaseConfig";
 
 import "./AdminReferralDetails.css";
 
+/* -------------------------------------------------
+   Date formatter
+------------------------------------------------- */
 function formatDate(value) {
-  if (!value) return "—";
+  if (!value) {
+    return "—";
+  }
 
   try {
-    const date = value?.toDate
-      ? value.toDate()
-      : new Date(value);
+    let date;
 
-    if (Number.isNaN(date.getTime())) return "—";
+    if (typeof value?.toDate === "function") {
+      date = value.toDate();
+    } else if (value?.seconds) {
+      date = new Date(value.seconds * 1000);
+    } else {
+      date = new Date(value);
+    }
+
+    if (!date || Number.isNaN(date.getTime())) {
+      return "—";
+    }
 
     return date.toLocaleString("en-IN", {
       dateStyle: "medium",
@@ -41,28 +57,43 @@ function formatDate(value) {
   }
 }
 
+/* -------------------------------------------------
+   Currency formatter
+------------------------------------------------- */
 function formatCurrency(value) {
-  const amount = Number(value || 0);
+  const amount = Number(value ?? 0);
 
-  return amount.toLocaleString("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  });
+  return `₹${
+    Number.isFinite(amount)
+      ? amount.toLocaleString("en-IN")
+      : "0"
+  }`;
 }
 
+/* -------------------------------------------------
+   Status badge
+------------------------------------------------- */
 function StatusBadge({ value }) {
   const status = String(value || "pending")
+    .trim()
     .toLowerCase()
-    .replace(/\s+/g, "_");
+    .replace(/\s+/g, "_")
+    .replace(/-/g, "_");
+
+  const displayStatus = status
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
   return (
     <span className={`status-badge ${status}`}>
-      {status.replace(/_/g, " ")}
+      {displayStatus}
     </span>
   );
 }
 
+/* -------------------------------------------------
+   Detail row
+------------------------------------------------- */
 function DetailRow({ label, value }) {
   return (
     <div className="detail-row">
@@ -72,6 +103,44 @@ function DetailRow({ label, value }) {
   );
 }
 
+/* -------------------------------------------------
+   Get current reward amount
+------------------------------------------------- */
+function getReferralReward(referral) {
+  const values = [
+    referral.paymentAmount,
+    referral.rewardAmount,
+    referral.rewardEarned,
+    referral.referralReward,
+    referral.earnings,
+    referral.reward,
+    referral.amount,
+  ];
+
+  for (const value of values) {
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+    ) {
+      const amount = Number(
+        String(value)
+          .replace(/₹/g, "")
+          .replace(/,/g, "")
+      );
+
+      if (Number.isFinite(amount)) {
+        return amount;
+      }
+    }
+  }
+
+  return 0;
+}
+
+/* -------------------------------------------------
+   Admin Referral Details
+------------------------------------------------- */
 export default function AdminReferralDetails() {
   const { referralId } = useParams();
   const navigate = useNavigate();
@@ -92,7 +161,16 @@ export default function AdminReferralDetails() {
   const [paymentFile, setPaymentFile] = useState(null);
   const [paymentPreview, setPaymentPreview] = useState("");
 
+  /* -------------------------------------------------
+     Load referral
+  ------------------------------------------------- */
   async function loadReferral() {
+    if (!referralId) {
+      setError("Referral ID is missing.");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError("");
@@ -103,10 +181,13 @@ export default function AdminReferralDetails() {
         referralId
       );
 
-      const snapshot = await getDoc(referralReference);
+      const snapshot = await getDoc(
+        referralReference
+      );
 
       if (!snapshot.exists()) {
         setError("Referral not found.");
+        setReferral(null);
         return;
       }
 
@@ -117,16 +198,28 @@ export default function AdminReferralDetails() {
 
       setReferral(data);
 
+      const existingAmount =
+        data.paymentAmount ??
+        data.rewardAmount ??
+        data.rewardEarned ??
+        data.referralReward ??
+        data.reward ??
+        "";
+
       setPaymentAmount(
-        data.paymentAmount ||
-          data.reward ||
-          0
+        existingAmount === 0
+          ? ""
+          : String(existingAmount)
       );
     } catch (err) {
-      console.error("Load referral error:", err);
+      console.error(
+        "Load referral error:",
+        err
+      );
 
       setError(
-        err.message || "Unable to load referral."
+        err?.message ||
+          "Unable to load referral."
       );
     } finally {
       setLoading(false);
@@ -134,11 +227,12 @@ export default function AdminReferralDetails() {
   }
 
   useEffect(() => {
-    if (referralId) {
-      loadReferral();
-    }
+    loadReferral();
   }, [referralId]);
 
+  /* -------------------------------------------------
+     Payment file validation
+  ------------------------------------------------- */
   function handlePaymentFileChange(event) {
     const file = event.target.files?.[0];
 
@@ -155,56 +249,91 @@ export default function AdminReferralDetails() {
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setError("Payment proof image must be below 5 MB.");
+      setError(
+        "Payment proof image must be below 5 MB."
+      );
       event.target.value = "";
       return;
     }
 
     setError("");
     setPaymentFile(file);
-    setPaymentPreview(URL.createObjectURL(file));
+    setPaymentPreview(
+      URL.createObjectURL(file)
+    );
   }
 
+  /* -------------------------------------------------
+     Validate admin action
+  ------------------------------------------------- */
   function validateAdminAccessAction() {
     if (!referral) {
-      setError("Referral details are unavailable.");
+      setError(
+        "Referral details are unavailable."
+      );
       return false;
     }
 
+    const status = String(
+      referral.status || ""
+    ).toLowerCase();
+
+    const paymentStatus = String(
+      referral.paymentStatus || ""
+    ).toLowerCase();
+
     if (
-      referral.status === "rejected" ||
-      referral.status === "paid"
+      status === "rejected" ||
+      status === "paid" ||
+      paymentStatus === "completed"
     ) {
-      setError("This referral has already been completed.");
+      setError(
+        "This referral has already been completed."
+      );
       return false;
     }
 
     return true;
   }
 
+  /* -------------------------------------------------
+     Open reject box
+  ------------------------------------------------- */
   function openRejectBox() {
-    if (!validateAdminAccessAction()) return;
+    if (!validateAdminAccessAction()) {
+      return;
+    }
 
-    setSuccess("");
     setError("");
+    setSuccess("");
     setShowPaymentBox(false);
     setShowRejectBox(true);
   }
 
+  /* -------------------------------------------------
+     Open payment box
+  ------------------------------------------------- */
   function openPaymentBox() {
-    if (!validateAdminAccessAction()) return;
+    if (!validateAdminAccessAction()) {
+      return;
+    }
 
-    setSuccess("");
     setError("");
+    setSuccess("");
     setShowRejectBox(false);
     setShowPaymentBox(true);
   }
 
+  /* -------------------------------------------------
+     Reject referral
+  ------------------------------------------------- */
   async function rejectReferral() {
     const reason = rejectReason.trim();
 
     if (!reason) {
-      setError("Please enter the rejection reason.");
+      setError(
+        "Please enter the rejection reason."
+      );
       return;
     }
 
@@ -228,6 +357,14 @@ export default function AdminReferralDetails() {
           rejectionReason: reason,
           rewardStatus: "rejected",
           paymentStatus: "not_paid",
+
+          // Rejected referrals must not show earnings
+          reward: 0,
+          rewardAmount: 0,
+          rewardEarned: 0,
+          referralReward: 0,
+          paymentAmount: 0,
+
           rejectedAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         }
@@ -239,25 +376,41 @@ export default function AdminReferralDetails() {
         rejectionReason: reason,
         rewardStatus: "rejected",
         paymentStatus: "not_paid",
+        reward: 0,
+        rewardAmount: 0,
+        rewardEarned: 0,
+        referralReward: 0,
+        paymentAmount: 0,
       }));
 
       setShowRejectBox(false);
       setRejectReason("");
 
-      setSuccess("Referral rejected successfully.");
+      setSuccess(
+        "Referral rejected successfully."
+      );
     } catch (err) {
-      console.error("Reject referral error:", err);
+      console.error(
+        "Reject referral error:",
+        err
+      );
 
       setError(
-        err.message || "Unable to reject referral."
+        err?.message ||
+          "Unable to reject referral."
       );
     } finally {
       setActionLoading(false);
     }
   }
 
+  /* -------------------------------------------------
+     Accept referral
+  ------------------------------------------------- */
   async function acceptReferral() {
-    if (!validateAdminAccessAction()) return;
+    if (!validateAdminAccessAction()) {
+      return;
+    }
 
     if (
       !window.confirm(
@@ -296,23 +449,37 @@ export default function AdminReferralDetails() {
         "Referral accepted. Complete the payment below."
       );
     } catch (err) {
-      console.error("Accept referral error:", err);
+      console.error(
+        "Accept referral error:",
+        err
+      );
 
       setError(
-        err.message || "Unable to accept referral."
+        err?.message ||
+          "Unable to accept referral."
       );
     } finally {
       setActionLoading(false);
     }
   }
 
+  /* -------------------------------------------------
+     Complete payment
+  ------------------------------------------------- */
   async function completePayment() {
-    if (!referral) return;
+    if (!referral) {
+      return;
+    }
 
     const amount = Number(paymentAmount);
 
-    if (!amount || amount <= 0) {
-      setError("Please enter a valid payment amount.");
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
+      setError(
+        "Please enter a valid payment amount."
+      );
       return;
     }
 
@@ -325,7 +492,7 @@ export default function AdminReferralDetails() {
 
     if (
       !window.confirm(
-        "Confirm that the referral payment has been completed?"
+        `Confirm payment of ₹${amount} to the referrer?`
       )
     ) {
       return;
@@ -337,9 +504,14 @@ export default function AdminReferralDetails() {
       setSuccess("");
 
       const fileExtension =
-        paymentFile.name.split(".").pop() || "jpg";
+        paymentFile.name
+          .split(".")
+          .pop()
+          ?.toLowerCase() || "jpg";
 
-      const filePath = `referral-payments/${referralId}/payment-proof-${Date.now()}.${fileExtension}`;
+      const filePath =
+        `referral-payments/${referralId}/` +
+        `payment-proof-${Date.now()}.${fileExtension}`;
 
       const paymentStorageReference = storageRef(
         storage,
@@ -354,48 +526,85 @@ export default function AdminReferralDetails() {
         }
       );
 
-      const paymentProofUrl = await getDownloadURL(
-        paymentStorageReference
-      );
+      const paymentProofUrl =
+        await getDownloadURL(
+          paymentStorageReference
+        );
+
+      /*
+       * IMPORTANT:
+       * Save the same amount in reward fields and
+       * paymentAmount. This fixes ₹0 in Referral History.
+       */
+      const paymentUpdate = {
+        status: "paid",
+
+        rewardStatus: "paid",
+
+        paymentStatus: "completed",
+
+        reward: amount,
+        rewardAmount: amount,
+        rewardEarned: amount,
+        referralReward: amount,
+
+        paymentAmount: amount,
+
+        paymentMethod: "UPI",
+
+        paymentProofUrl,
+
+        paymentProofPath: filePath,
+
+        paidAt: serverTimestamp(),
+
+        updatedAt: serverTimestamp(),
+      };
 
       await updateDoc(
         doc(db, "referrals", referralId),
-        {
-          status: "paid",
-          rewardStatus: "paid",
-          paymentStatus: "completed",
-          paymentAmount: amount,
-          paymentMethod: "UPI",
-          paymentProofUrl,
-          paymentProofPath: filePath,
-          paidAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }
+        paymentUpdate
       );
 
       setReferral((previous) => ({
         ...previous,
+
         status: "paid",
+
         rewardStatus: "paid",
+
         paymentStatus: "completed",
+
+        reward: amount,
+        rewardAmount: amount,
+        rewardEarned: amount,
+        referralReward: amount,
+
         paymentAmount: amount,
+
         paymentMethod: "UPI",
+
         paymentProofUrl,
+
         paymentProofPath: filePath,
       }));
 
       setShowPaymentBox(false);
       setPaymentFile(null);
       setPaymentPreview("");
+      setPaymentAmount(String(amount));
 
       setSuccess(
         "Payment completed and proof uploaded successfully."
       );
     } catch (err) {
-      console.error("Complete payment error:", err);
+      console.error(
+        "Complete payment error:",
+        err
+      );
 
       setError(
-        err.message ||
+        err?.message ||
           "Unable to complete payment. Please try again."
       );
     } finally {
@@ -403,6 +612,9 @@ export default function AdminReferralDetails() {
     }
   }
 
+  /* -------------------------------------------------
+     Loading state
+  ------------------------------------------------- */
   if (loading) {
     return (
       <div className="admin-details-page">
@@ -413,6 +625,9 @@ export default function AdminReferralDetails() {
     );
   }
 
+  /* -------------------------------------------------
+     Error state
+  ------------------------------------------------- */
   if (error && !referral) {
     return (
       <div className="admin-details-page">
@@ -437,14 +652,20 @@ export default function AdminReferralDetails() {
   }
 
   const isRejected =
-    referral.status === "rejected";
+    String(referral.status).toLowerCase() ===
+    "rejected";
 
   const isPaid =
-    referral.status === "paid" ||
-    referral.paymentStatus === "completed";
+    String(referral.status).toLowerCase() ===
+      "paid" ||
+    String(referral.paymentStatus).toLowerCase() ===
+      "completed";
 
   const isAccepted =
-    referral.status === "accepted";
+    String(referral.status).toLowerCase() ===
+    "accepted";
+
+  const reward = getReferralReward(referral);
 
   return (
     <div className="admin-details-page">
@@ -467,7 +688,12 @@ export default function AdminReferralDetails() {
           </p>
         </div>
 
-        <StatusBadge value={referral.status} />
+        <StatusBadge
+          value={
+            referral.status ||
+            referral.paymentStatus
+          }
+        />
       </div>
 
       {error && (
@@ -506,8 +732,15 @@ export default function AdminReferralDetails() {
           />
 
           <DetailRow
+            label="UPI / Payment Number"
+            value={referral.upiNumber}
+          />
+
+          <DetailRow
             label="Referral Submitted"
-            value={formatDate(referral.createdAt)}
+            value={formatDate(
+              referral.createdAt
+            )}
           />
         </section>
 
@@ -543,15 +776,16 @@ export default function AdminReferralDetails() {
 
           <DetailRow
             label="Union / Labour ID"
-            value={referral.unionId}
+            value={
+              referral.unionId ||
+              "Not provided"
+            }
           />
 
-          <div className="detail-row vertical">
-            <span>Address</span>
-            <strong>
-              {referral.address || "—"}
-            </strong>
-          </div>
+          <DetailRow
+            label="Address"
+            value={referral.address}
+          />
         </section>
 
         <section className="detail-card">
@@ -585,111 +819,52 @@ export default function AdminReferralDetails() {
               />
             }
           />
-        </section>
-
-        <section className="detail-card reward-card">
-          <div className="card-label">
-            REWARD DETAILS
-          </div>
-
-          <div className="reward-amount">
-            {formatCurrency(
-              referral.paymentAmount ||
-                referral.reward ||
-                0
-            )}
-          </div>
 
           <DetailRow
             label="Reward Amount"
-            value={formatCurrency(
-              referral.reward || 0
+            value={formatCurrency(reward)}
+          />
+
+          <DetailRow
+            label="Accepted At"
+            value={formatDate(
+              referral.acceptedAt
             )}
           />
 
           <DetailRow
-            label="Payment Amount"
-            value={formatCurrency(
-              referral.paymentAmount ||
-                referral.reward ||
-                0
+            label="Paid At"
+            value={formatDate(
+              referral.paidAt
             )}
           />
 
-          <DetailRow
-            label="Payment Method"
-            value={
-              referral.paymentMethod ||
-              "Not paid"
-            }
-          />
-        </section>
+          {isRejected &&
+            referral.rejectionReason && (
+              <div className="rejection-message">
+                <strong>
+                  Rejection Reason:
+                </strong>
 
-        {isRejected && (
-          <section className="detail-card rejection-card">
-            <div className="card-label">
-              REJECTION DETAILS
-            </div>
+                <p>
+                  {referral.rejectionReason}
+                </p>
+              </div>
+            )}
 
-            <h3>Reason for Rejection</h3>
-
-            <p>
-              {referral.rejectionReason ||
-                "No rejection reason provided."}
-            </p>
-
-            <DetailRow
-              label="Rejected At"
-              value={formatDate(
-                referral.rejectedAt
-              )}
-            />
-          </section>
-        )}
-
-        {isPaid && (
-          <section className="detail-card payment-proof-card">
-            <div className="card-label">
-              PAYMENT COMPLETED
-            </div>
-
-            <DetailRow
-              label="Paid At"
-              value={formatDate(
-                referral.paidAt
-              )}
-            />
-
-            <DetailRow
-              label="Payment Amount"
-              value={formatCurrency(
-                referral.paymentAmount ||
-                  referral.reward ||
-                  0
-              )}
-            />
-
-            {referral.paymentProofUrl && (
-              <div className="payment-proof-preview">
-                <h3>Payment Proof</h3>
-
-                <img
-                  src={referral.paymentProofUrl}
-                  alt="Payment proof"
-                />
-
+          {isPaid &&
+            referral.paymentProofUrl && (
+              <div className="payment-proof-link">
                 <a
                   href={referral.paymentProofUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="btn btn-secondary"
                 >
-                  Open Full Proof
+                  View Payment Proof
                 </a>
               </div>
             )}
-          </section>
-        )}
+        </section>
       </div>
 
       {!isRejected && !isPaid && (
@@ -718,13 +893,23 @@ export default function AdminReferralDetails() {
             </div>
           )}
 
+          {isAccepted && !showPaymentBox && (
+            <button
+              className="approve-action"
+              disabled={actionLoading}
+              onClick={openPaymentBox}
+            >
+              Complete Payment
+            </button>
+          )}
+
           {showRejectBox && (
             <div className="action-box rejection-box">
               <h3>Reject Referral</h3>
 
               <p>
-                Enter the reason why this referral is
-                being rejected.
+                Enter the reason why this referral
+                is being rejected.
               </p>
 
               <textarea
@@ -765,11 +950,13 @@ export default function AdminReferralDetails() {
 
           {(isAccepted || showPaymentBox) && (
             <div className="action-box payment-box">
-              <h3>Complete Referral Payment</h3>
+              <h3>
+                Complete Referral Payment
+              </h3>
 
               <p>
-                Upload the payment completed screenshot
-                after sending the reward to the referrer.
+                Upload the payment completed
+                screenshot after sending the reward.
               </p>
 
               <div className="form-group">
@@ -781,6 +968,7 @@ export default function AdminReferralDetails() {
                   id="payment-amount"
                   type="number"
                   min="1"
+                  step="1"
                   value={paymentAmount}
                   onChange={(event) =>
                     setPaymentAmount(
@@ -800,14 +988,16 @@ export default function AdminReferralDetails() {
                   id="payment-proof"
                   type="file"
                   accept="image/*"
-                  onChange={handlePaymentFileChange}
+                  onChange={
+                    handlePaymentFileChange
+                  }
                   disabled={actionLoading}
                 />
               </div>
 
               {paymentPreview && (
-                <div className="payment-preview">
-                  <p>Selected Payment Proof:</p>
+                <div className="payment-proof-preview">
+                  <h3>Selected Proof</h3>
 
                   <img
                     src={paymentPreview}
@@ -816,16 +1006,53 @@ export default function AdminReferralDetails() {
                 </div>
               )}
 
-              <button
-                className="approve-action"
-                disabled={actionLoading}
-                onClick={completePayment}
-              >
-                {actionLoading
-                  ? "Uploading Payment Proof..."
-                  : "Payment Completed"}
-              </button>
+              <div className="action-buttons">
+                <button
+                  className="approve-action"
+                  disabled={actionLoading}
+                  onClick={completePayment}
+                >
+                  {actionLoading
+                    ? "Uploading..."
+                    : "Confirm Payment"}
+                </button>
+
+                <button
+                  className="secondary-action"
+                  disabled={actionLoading}
+                  onClick={() =>
+                    setShowPaymentBox(false)
+                  }
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
+          )}
+        </section>
+      )}
+
+      {isPaid && (
+        <section className="payment-success-message">
+          <strong>
+            ✓ Payment Completed
+          </strong>
+
+          <p>
+            Reward paid:{" "}
+            <strong>
+              {formatCurrency(reward)}
+            </strong>
+          </p>
+
+          {referral.paymentProofUrl && (
+            <a
+              href={referral.paymentProofUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open Full Payment Proof
+            </a>
           )}
         </section>
       )}

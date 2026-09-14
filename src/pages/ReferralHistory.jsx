@@ -55,7 +55,7 @@ function formatDate(value) {
   }
 
   try {
-    let date = null;
+    let date;
 
     if (typeof value?.toDate === "function") {
       date = value.toDate();
@@ -65,10 +65,7 @@ function formatDate(value) {
       date = new Date(value);
     } else if (typeof value === "number") {
       date = new Date(value);
-    } else if (
-      typeof value === "object" &&
-      typeof value.seconds === "number"
-    ) {
+    } else if (value?.seconds) {
       date = new Date(value.seconds * 1000);
     }
 
@@ -87,136 +84,80 @@ function formatDate(value) {
 }
 
 /* -------------------------------------------------
-   Convert possible amount values into number
-------------------------------------------------- */
-function convertToNumber(value) {
-  if (value === undefined || value === null || value === "") {
-    return null;
-  }
+   Get reward from all possible Firestore fields
 
-  if (typeof value === "string") {
-    const cleanedValue = value
-      .replace(/₹/g, "")
-      .replace(/,/g, "")
-      .trim();
+   IMPORTANT:
+   paymentAmount is checked before reward because
+   older referral documents may contain:
 
-    if (!cleanedValue) {
-      return null;
-    }
-
-    const numericValue = Number(cleanedValue);
-
-    return Number.isNaN(numericValue)
-      ? null
-      : numericValue;
-  }
-
-  const numericValue = Number(value);
-
-  return Number.isNaN(numericValue)
-    ? null
-    : numericValue;
-}
-
-/* -------------------------------------------------
-   Get reward from all supported Firestore fields
+   reward: 0
+   paymentAmount: 4
 ------------------------------------------------- */
 function getReferralReward(referral) {
   const possibleRewardValues = [
-    referral.reward,
-    referral.rewardAmount,
     referral.paymentAmount,
-    referral.amount,
-    referral.earnings,
+    referral.rewardAmount,
     referral.rewardEarned,
     referral.referralReward,
-    referral.referralAmount,
+    referral.earnings,
+    referral.amount,
+    referral.reward,
   ];
 
-  for (const value of possibleRewardValues) {
-    const numericValue = convertToNumber(value);
+  const rewardValue = possibleRewardValues.find(
+    (value) =>
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+  );
 
-    if (numericValue !== null) {
-      return numericValue;
-    }
+  const numericReward = Number(rewardValue);
+
+  if (!Number.isFinite(numericReward)) {
+    return 0;
   }
 
-  return 0;
+  return numericReward;
 }
 
 /* -------------------------------------------------
-   Get provider name safely
-
-   Important:
-   Do not use referral.name first because it may
-   contain the referrer's name.
+   Get provider name from possible field names
 ------------------------------------------------- */
 function getProviderName(referral) {
   return (
     referral.providerName ||
-    referral.referredProviderName ||
-    referral.providerFullName ||
+    referral.name ||
     referral.provider?.name ||
-    referral.provider?.fullName ||
-    referral.referredProvider?.name ||
-    referral.referredProvider?.fullName ||
-    referral.providerDetails?.name ||
-    referral.providerDetails?.fullName ||
-    referral.serviceProviderName ||
-    "Provider name unavailable"
+    referral.fullName ||
+    "—"
   );
 }
 
 /* -------------------------------------------------
-   Get provider phone safely
+   Get phone from possible field names
 ------------------------------------------------- */
 function getProviderPhone(referral) {
   return (
     referral.providerPhone ||
-    referral.providerPhoneNumber ||
-    referral.referredProviderPhone ||
-    referral.referredProviderMobile ||
-    referral.provider?.phone ||
-    referral.provider?.phoneNumber ||
-    referral.provider?.mobile ||
     referral.phone ||
     referral.phoneNumber ||
     referral.mobile ||
     referral.mobileNumber ||
-    "Phone unavailable"
+    "—"
   );
 }
 
 /* -------------------------------------------------
-   Get Union / Labour ID safely
+   Get Union / Labour ID from possible field names
 ------------------------------------------------- */
 function getUnionId(referral) {
   return (
-    referral.providerUnionId ||
-    referral.providerUnionID ||
-    referral.referredProviderUnionId ||
-    referral.referredProviderUnionID ||
     referral.unionId ||
     referral.unionID ||
     referral.labourId ||
     referral.labourID ||
     referral.unionLabourId ||
-    referral.provider?.unionId ||
-    referral.provider?.unionID ||
     "Not provided"
-  );
-}
-
-/* -------------------------------------------------
-   Get status from all possible fields
-------------------------------------------------- */
-function getReferralStatus(referral) {
-  return (
-    referral.status ||
-    referral.referralStatus ||
-    referral.paymentStatus ||
-    referral.rewardStatus ||
-    "pending"
   );
 }
 
@@ -273,9 +214,7 @@ export default function ReferralHistory() {
               })
               .sort((a, b) => {
                 const getTime = (value) => {
-                  if (!value) {
-                    return 0;
-                  }
+                  if (!value) return 0;
 
                   if (
                     typeof value?.toMillis === "function"
@@ -283,17 +222,15 @@ export default function ReferralHistory() {
                     return value.toMillis();
                   }
 
-                  if (
-                    typeof value?.seconds === "number"
-                  ) {
+                  if (value?.seconds) {
                     return value.seconds * 1000;
                   }
 
-                  const date = new Date(value);
+                  const parsedDate = new Date(value);
 
-                  return Number.isNaN(date.getTime())
+                  return Number.isNaN(parsedDate.getTime())
                     ? 0
-                    : date.getTime();
+                    : parsedDate.getTime();
                 };
 
                 return (
@@ -359,7 +296,6 @@ export default function ReferralHistory() {
             const providerName = getProviderName(referral);
             const phone = getProviderPhone(referral);
             const unionId = getUnionId(referral);
-            const status = getReferralStatus(referral);
 
             return (
               <div
@@ -375,7 +311,13 @@ export default function ReferralHistory() {
                     <h2>{providerName}</h2>
                   </div>
 
-                  <StatusBadge value={status} />
+                  <StatusBadge
+                    value={
+                      referral.status ||
+                      referral.paymentStatus ||
+                      "pending"
+                    }
+                  />
                 </div>
 
                 <div className="history-details">
