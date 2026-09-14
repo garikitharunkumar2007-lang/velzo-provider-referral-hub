@@ -681,3 +681,91 @@
     width: 100%;
   }
 }
+/* =========================================
+   ADMIN REFERRAL DETAILS - TEXT VISIBILITY
+   ========================================= */
+
+.referral-details-page {
+  color: #172033;
+}
+
+/* White information cards */
+.referral-details-page .details-card,
+.referral-details-page .referrer-card,
+.referral-details-page .provider-card,
+.referral-details-page .information-card {
+  background: #ffffff;
+  color: #172033;
+}
+
+/* Card headings */
+.referral-details-page .card-title,
+.referral-details-page h2,
+.referral-details-page h3,
+.referral-details-page h4 {
+  color: #172033 !important;
+}
+
+/* Card descriptions */
+.referral-details-page .card-description,
+.referral-details-page .section-description {
+  color: #64748b !important;
+}
+
+/* Field labels */
+.referral-details-page .field-label,
+.referral-details-page .detail-label,
+.referral-details-page label {
+  color: #64748b !important;
+}
+
+/* Field values */
+.referral-details-page .field-value,
+.referral-details-page .detail-value,
+.referral-details-page .value {
+  color: #172033 !important;
+  font-weight: 700;
+}
+
+/* Important provider values */
+.referral-details-page .provider-name,
+.referral-details-page .highlight-value {
+  color: #0284c7 !important;
+  font-weight: 800;
+}
+
+/* Dividers */
+.referral-details-page .detail-row {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* Referral status section */
+.referral-details-page .status-card {
+  background: #172b49;
+  color: #ffffff;
+}
+
+.referral-details-page .status-card h2,
+.referral-details-page .status-card h3,
+.referral-details-page .status-card p,
+.referral-details-page .status-card span {
+  color: #ffffff;
+}
+
+/* Prevent dark-mode global text from breaking white cards */
+.dark .referral-details-page .details-card,
+.dark .referral-details-page .referrer-card,
+.dark .referral-details-page .provider-card,
+.dark .referral-details-page .information-card {
+  background: #ffffff;
+  color: #172033;
+}
+
+.dark .referral-details-page .details-card h2,
+.dark .referral-details-page .details-card h3,
+.dark .referral-details-page .details-card h4,
+.dark .referral-details-page .details-card p,
+.dark .referral-details-page .details-card span,
+.dark .referral-details-page .details-card label {
+  color: inherit;
+}
