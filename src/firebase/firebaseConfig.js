@@ -46,32 +46,27 @@ const firebaseConfig = {
 };
 
 /* =========================================
-   CONFIGURATION VALIDATION
+   VALIDATE FIREBASE CONFIG
 ========================================= */
 
-const requiredFirebaseConfig = {
-  apiKey: firebaseConfig.apiKey,
-  authDomain: firebaseConfig.authDomain,
-  projectId: firebaseConfig.projectId,
-  storageBucket: firebaseConfig.storageBucket,
-  messagingSenderId: firebaseConfig.messagingSenderId,
-  appId: firebaseConfig.appId,
-};
+const requiredFirebaseValues = [
+  "VITE_FIREBASE_API_KEY",
+  "VITE_FIREBASE_AUTH_DOMAIN",
+  "VITE_FIREBASE_DATABASE_URL",
+  "VITE_FIREBASE_PROJECT_ID",
+  "VITE_FIREBASE_STORAGE_BUCKET",
+  "VITE_FIREBASE_MESSAGING_SENDER_ID",
+  "VITE_FIREBASE_APP_ID",
+];
 
-const missingFirebaseValues = Object.entries(requiredFirebaseConfig)
-  .filter(([, value]) => !value)
-  .map(([key]) => key);
+const missingFirebaseValues = requiredFirebaseValues.filter(
+  (key) => !import.meta.env[key]
+);
 
 if (missingFirebaseValues.length > 0) {
   console.error(
     "Missing Firebase environment variables:",
     missingFirebaseValues
-  );
-
-  throw new Error(
-    `Firebase configuration is incomplete. Missing: ${missingFirebaseValues.join(
-      ", "
-    )}`
   );
 }
 
@@ -82,7 +77,7 @@ if (missingFirebaseValues.length > 0) {
 const app = initializeApp(firebaseConfig);
 
 /* =========================================
-   FIREBASE AUTHENTICATION
+   FIREBASE SERVICES
 ========================================= */
 
 export const auth = getAuth(app);
@@ -91,32 +86,16 @@ setPersistence(auth, browserLocalPersistence).catch((error) => {
   console.error("Firebase Auth persistence error:", error);
 });
 
-/* =========================================
-   CLOUD FIRESTORE
-========================================= */
-
 export const db = getFirestore(app);
-
-/* =========================================
-   REALTIME DATABASE
-========================================= */
 
 export const realtimeDb = getDatabase(app);
 
-/* =========================================
-   FIREBASE STORAGE
-========================================= */
-
 export const storage = getStorage(app);
-
-/* =========================================
-   FIREBASE CLOUD FUNCTIONS
-========================================= */
 
 export const functions = getFunctions(app, "asia-south1");
 
 /* =========================================
-   FIREBASE ANALYTICS
+   ANALYTICS
 ========================================= */
 
 export let analytics = null;
