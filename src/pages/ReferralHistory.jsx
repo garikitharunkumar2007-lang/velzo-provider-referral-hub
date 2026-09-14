@@ -17,7 +17,7 @@ import { db } from "../firebase/firebaseConfig";
 import "./ReferralHistory.css";
 
 /* -------------------------------------------------
-   Convert any status into a safe CSS class
+   Convert status into a safe CSS class
 ------------------------------------------------- */
 function normalizeStatus(value) {
   const status = String(value || "pending")
@@ -30,18 +30,40 @@ function normalizeStatus(value) {
 }
 
 /* -------------------------------------------------
+   Friendly status display
+------------------------------------------------- */
+function getFriendlyStatus(value) {
+  const status = normalizeStatus(value);
+
+  const statusMap = {
+    pending: "Pending Verification",
+    submitted: "Submitted",
+    under_review: "Under Review",
+    verified: "Verified",
+    accepted: "Accepted",
+    approved: "Approved",
+    paid: "Paid",
+    completed: "Completed",
+    rejected: "Rejected",
+  };
+
+  return (
+    statusMap[status] ||
+    status
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase())
+  );
+}
+
+/* -------------------------------------------------
    Display status badge
 ------------------------------------------------- */
 function StatusBadge({ value }) {
   const status = normalizeStatus(value);
 
-  const displayStatus = status
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-
   return (
     <span className={`status-badge ${status}`}>
-      {displayStatus}
+      {getFriendlyStatus(status)}
     </span>
   );
 }
@@ -85,13 +107,6 @@ function formatDate(value) {
 
 /* -------------------------------------------------
    Get reward from all possible Firestore fields
-
-   IMPORTANT:
-   paymentAmount is checked before reward because
-   older referral documents may contain:
-
-   reward: 0
-   paymentAmount: 4
 ------------------------------------------------- */
 function getReferralReward(referral) {
   const possibleRewardValues = [
@@ -125,7 +140,7 @@ function getReferralReward(referral) {
 }
 
 /* -------------------------------------------------
-   Get provider name from possible field names
+   Get provider name
 ------------------------------------------------- */
 function getProviderName(referral) {
   return (
@@ -138,7 +153,7 @@ function getProviderName(referral) {
 }
 
 /* -------------------------------------------------
-   Get phone from possible field names
+   Get provider phone
 ------------------------------------------------- */
 function getProviderPhone(referral) {
   return (
@@ -152,7 +167,7 @@ function getProviderPhone(referral) {
 }
 
 /* -------------------------------------------------
-   Get Union / Labour ID from possible field names
+   Get Union / Labour ID
 ------------------------------------------------- */
 function getUnionId(referral) {
   return (
@@ -166,16 +181,73 @@ function getUnionId(referral) {
 }
 
 /* -------------------------------------------------
-   Get rejection reason from possible field names
+   Convert technical rejection reasons into
+   friendly user-facing messages
 ------------------------------------------------- */
-function getRejectionReason(referral) {
-  return (
-    referral.rejectionReason ||
-    referral.rejectReason ||
-    referral.rejectedReason ||
-    referral.reason ||
-    "No rejection reason was provided."
-  );
+function getFriendlyRejectionReason(reason) {
+  const originalReason = String(reason || "").trim();
+
+  if (!originalReason) {
+    return "Your referral could not be approved. Please contact VELZO support for more details.";
+  }
+
+  const normalizedReason = originalReason
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/-/g, "_");
+
+  const reasonMap = {
+    phone_already_exists:
+      "This phone number is already registered with VELZO. Please refer a different provider.",
+
+    invalid_information:
+      "The information provided for this provider is invalid. Please check the details and try again.",
+
+    invalid_info:
+      "The information provided for this provider is invalid. Please check the details and try again.",
+
+    invalid_data:
+      "The provider information could not be verified. Please check the submitted details.",
+
+    duplicate_referral:
+      "This provider has already been referred to VELZO.",
+
+    provider_already_registered:
+      "This provider is already registered with VELZO.",
+
+    provider_not_found:
+      "The provider details could not be verified.",
+
+    incomplete_information:
+      "Some required provider information is missing. Please check the details and try again.",
+
+    invalid_phone:
+      "The provider phone number is invalid. Please submit a valid phone number.",
+
+    invalid_upi:
+      "The payment number or UPI ID could not be verified.",
+
+    no_consent:
+      "Provider consent was not confirmed. Please obtain the provider's consent before referring.",
+
+    fake_details:
+      "The submitted provider details could not be verified.",
+
+    not_eligible:
+      "This provider does not currently meet the referral eligibility requirements.",
+  };
+
+  if (reasonMap[normalizedReason]) {
+    return reasonMap[normalizedReason];
+  }
+
+  /*
+   * If admin entered a normal sentence such as:
+   * "Provider details are invalid"
+   * display it directly.
+   */
+  return originalReason;
 }
 
 /* -------------------------------------------------
@@ -316,9 +388,15 @@ export default function ReferralHistory() {
         <div className="history-list">
           {referrals.map((referral) => {
             const reward = getReferralReward(referral);
-            const providerName = getProviderName(referral);
-            const phone = getProviderPhone(referral);
-            const unionId = getUnionId(referral);
+
+            const providerName =
+              getProviderName(referral);
+
+            const phone =
+              getProviderPhone(referral);
+
+            const unionId =
+              getUnionId(referral);
 
             const status = normalizeStatus(
               referral.status ||
@@ -329,7 +407,12 @@ export default function ReferralHistory() {
             const isRejected = status === "rejected";
 
             const rejectionReason =
-              getRejectionReason(referral);
+              getFriendlyRejectionReason(
+                referral.rejectionReason ||
+                  referral.rejectReason ||
+                  referral.rejectedReason ||
+                  referral.reason
+              );
 
             return (
               <div
@@ -338,6 +421,7 @@ export default function ReferralHistory() {
                 }`}
                 key={referral.id}
               >
+                {/* CARD HEADER */}
                 <div className="history-top">
                   <div>
                     <span className="small-label">
@@ -350,6 +434,7 @@ export default function ReferralHistory() {
                   <StatusBadge value={status} />
                 </div>
 
+                {/* DETAILS */}
                 <div className="history-details">
                   <div>
                     <span>Phone</span>
@@ -378,9 +463,7 @@ export default function ReferralHistory() {
                   </div>
                 </div>
 
-                {/* -------------------------------------------------
-                   Rejection reason shown only for rejected referrals
-                ------------------------------------------------- */}
+                {/* FRIENDLY REJECTION REASON */}
                 {isRejected && (
                   <div className="rejection-reason-box">
                     <div className="rejection-reason-title">

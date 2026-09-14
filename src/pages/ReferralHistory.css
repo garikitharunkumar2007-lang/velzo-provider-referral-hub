@@ -19,14 +19,19 @@
 
 .eyebrow {
   color: #22d3ee;
+
   font-size: 12px;
+
   font-weight: 800;
+
   letter-spacing: 2px;
+
   margin-bottom: 8px;
 }
 
 .page-heading h1 {
   margin: 0;
+
   font-size: 34px;
 }
 
@@ -37,15 +42,19 @@
 /* -------------------------------------------------
    Referral list
 ------------------------------------------------- */
+
 .history-list {
   display: grid;
+
   gap: 18px;
+
   max-width: 1100px;
 }
 
 /* -------------------------------------------------
    Referral card
 ------------------------------------------------- */
+
 .history-card {
   background: rgba(15, 27, 45, 0.92);
 
@@ -72,15 +81,17 @@
 }
 
 /* -------------------------------------------------
-   Rejected card highlight
+   Rejected card
 ------------------------------------------------- */
+
 .history-card.rejected-card {
-  border-color: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.3);
 }
 
 /* -------------------------------------------------
-   Card top section
+   Header
 ------------------------------------------------- */
+
 .history-top {
   display: flex;
 
@@ -108,8 +119,9 @@
 }
 
 /* -------------------------------------------------
-   Details section
+   Details
 ------------------------------------------------- */
+
 .history-details {
   display: grid;
 
@@ -149,8 +161,9 @@
 }
 
 /* -------------------------------------------------
-   Status badge
+   Status badges
 ------------------------------------------------- */
+
 .status-badge {
   display: inline-flex;
 
@@ -172,6 +185,18 @@
 }
 
 .status-badge.pending {
+  background: rgba(245, 158, 11, 0.12);
+
+  color: #fbbf24;
+}
+
+.status-badge.submitted {
+  background: rgba(245, 158, 11, 0.12);
+
+  color: #fbbf24;
+}
+
+.status-badge.under_review {
   background: rgba(245, 158, 11, 0.12);
 
   color: #fbbf24;
@@ -222,10 +247,11 @@
 /* -------------------------------------------------
    Rejection reason box
 ------------------------------------------------- */
+
 .rejection-reason-box {
   margin-top: 22px;
 
-  padding: 16px 18px;
+  padding: 17px 20px;
 
   border-left: 4px solid #ef4444;
 
@@ -234,7 +260,7 @@
   background:
     linear-gradient(
       135deg,
-      rgba(239, 68, 68, 0.13),
+      rgba(239, 68, 68, 0.14),
       rgba(127, 29, 29, 0.12)
     );
 
@@ -260,7 +286,7 @@
 
 .rejection-reason-title::before {
   content: "⚠";
-  
+
   font-size: 14px;
 }
 
@@ -281,6 +307,7 @@
 /* -------------------------------------------------
    Empty state
 ------------------------------------------------- */
+
 .empty-state {
   max-width: 700px;
 
@@ -298,6 +325,7 @@
 /* -------------------------------------------------
    Tablet
 ------------------------------------------------- */
+
 @media (max-width: 800px) {
   .history-page {
     padding: 22px;
@@ -311,6 +339,7 @@
 /* -------------------------------------------------
    Mobile
 ------------------------------------------------- */
+
 @media (max-width: 500px) {
   .history-page {
     padding: 18px;
