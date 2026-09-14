@@ -1,409 +1,387 @@
-/* =====================================================
-   ADMIN REFERRAL DETAILS PAGE
-===================================================== */
+/* =========================================================
+   ADMIN REFERRAL DETAILS - UI POLISH
+========================================================= */
 
 .admin-details-page {
   width: 100%;
-  min-height: 100vh;
-  box-sizing: border-box;
+  max-width: 1400px;
+  margin: 0 auto;
   padding: 32px 36px 60px;
-  color: #e5edf8;
-  background:
-    radial-gradient(
-      circle at top right,
-      rgba(37, 99, 235, 0.12),
-      transparent 32%
-    ),
-    #0b1324;
+  box-sizing: border-box;
+  color: #f8fafc;
 }
 
-/* =====================================================
-   HEADER
-===================================================== */
+/* Header section */
 
 .admin-details-header {
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto 28px;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 24px;
-  flex-wrap: wrap;
-}
-
-.header-left {
-  min-width: 0;
-}
-
-.back-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-  padding: 10px 15px;
-  border: 1px solid #334155;
-  border-radius: 10px;
-  background: #17243a;
-  color: #cbd5e1;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.back-button:hover {
-  background: #243653;
-  border-color: #4f8cff;
-  color: #ffffff;
-  transform: translateX(-2px);
+  margin-bottom: 26px;
 }
 
 .admin-details-header h1 {
   margin: 0;
-  color: #f8fafc;
-  font-size: clamp(28px, 3vw, 42px);
-  line-height: 1.15;
+  font-size: 34px;
+  line-height: 1.2;
   font-weight: 800;
   letter-spacing: -0.8px;
+  color: #f8fafc;
 }
 
 .admin-details-header p {
-  margin: 12px 0 0;
-  color: #8fa8ca;
+  margin: 10px 0 0;
+  color: #94a3b8;
   font-size: 14px;
-  word-break: break-word;
 }
 
-.admin-details-header p strong {
+.referral-id {
+  margin-top: 14px;
+  color: #cbd5e1;
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.referral-id strong {
+  color: #ffffff;
+}
+
+/* Back button */
+
+.back-button,
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 10px 14px;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #17243a;
   color: #dbeafe;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  transition: all 0.2s ease;
 }
 
-/* =====================================================
-   STATUS BADGES
-===================================================== */
+.back-button:hover,
+.back-link:hover {
+  background: #243653;
+  border-color: #60a5fa;
+  color: #ffffff;
+  transform: translateX(-2px);
+}
+
+/* Status badge */
 
 .status-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
-  padding: 7px 13px;
+  min-height: 30px;
+  padding: 5px 13px;
   border-radius: 999px;
-  border: 1px solid transparent;
   font-size: 12px;
   font-weight: 800;
   line-height: 1;
-  text-transform: capitalize;
   white-space: nowrap;
+  border: 1px solid transparent;
 }
 
-.status-badge.pending {
-  color: #fbbf24;
-  background: rgba(245, 158, 11, 0.14);
-  border-color: rgba(245, 158, 11, 0.35);
+/* Status colors */
+
+.status-badge.pending,
+.status-pending {
+  background: #fff7df;
+  color: #a16207;
+  border-color: #fde68a;
 }
 
 .status-badge.accepted,
+.status-accepted,
 .status-badge.approved,
-.status-badge.verified,
+.status-approved,
 .status-badge.successful,
+.status-successful,
+.status-badge.verified,
+.status-verified,
 .status-badge.completed,
-.status-badge.paid {
-  color: #4ade80;
-  background: rgba(34, 197, 94, 0.14);
-  border-color: rgba(34, 197, 94, 0.35);
+.status-completed,
+.status-badge.paid,
+.status-paid {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
 }
 
 .status-badge.rejected,
+.status-rejected,
 .status-badge.failed,
-.status-badge.not_paid {
-  color: #f87171;
-  background: rgba(239, 68, 68, 0.14);
-  border-color: rgba(239, 68, 68, 0.35);
+.status-failed {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
 }
 
-.status-badge.not_started,
-.status-badge.not_earned {
-  color: #cbd5e1;
-  background: rgba(148, 163, 184, 0.14);
-  border-color: rgba(148, 163, 184, 0.3);
-}
-
-/* =====================================================
-   ALERTS
-===================================================== */
+/* Alert messages */
 
 .admin-alert {
-  width: 100%;
-  max-width: 1400px;
-  box-sizing: border-box;
-  margin: 0 auto 22px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 15px 18px;
+  margin: 22px 0;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 700;
   line-height: 1.5;
+  border: 1px solid transparent;
 }
 
 .admin-alert.error {
+  background: rgba(127, 29, 29, 0.25);
   color: #fecaca;
-  background: rgba(127, 29, 29, 0.28);
-  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-color: rgba(248, 113, 113, 0.4);
 }
 
 .admin-alert.success {
-  color: #bbf7d0;
   background: rgba(20, 83, 45, 0.3);
-  border: 1px solid rgba(74, 222, 128, 0.35);
+  color: #bbf7d0;
+  border-color: rgba(74, 222, 128, 0.4);
 }
 
-/* =====================================================
-   DETAILS GRID
-===================================================== */
+.admin-alert.info {
+  background: rgba(30, 64, 175, 0.25);
+  color: #bfdbfe;
+  border-color: rgba(96, 165, 250, 0.4);
+}
+
+/* Main details grid */
 
 .details-grid {
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 22px;
-  align-items: start;
+  margin-top: 24px;
 }
 
-.detail-card {
+.details-card {
   min-width: 0;
   padding: 26px;
-  border: 1px solid #263852;
+  border: 1px solid #263752;
   border-radius: 18px;
-  background:
-    linear-gradient(
-      145deg,
-      rgba(23, 39, 63, 0.98),
-      rgba(13, 25, 44, 0.98)
-    );
-  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.16);
+  background: linear-gradient(
+    145deg,
+    #14233a 0%,
+    #101c30 100%
+  );
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.16);
 }
 
-.detail-card:nth-child(3) {
-  grid-column: 1 / -1;
-}
-
-.card-label {
-  margin-bottom: 14px;
-  color: #7dd3fc;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 1.4px;
-}
-
-.detail-card h2 {
-  margin: 0 0 22px;
+.details-card h2,
+.details-card h3 {
+  margin: 0 0 20px;
   color: #f8fafc;
-  font-size: 25px;
-  line-height: 1.25;
+  font-size: 18px;
   font-weight: 800;
-  overflow-wrap: anywhere;
 }
 
-/* =====================================================
-   DETAIL ROWS
-===================================================== */
+.details-card h2::after,
+.details-card h3::after {
+  content: "";
+  display: block;
+  width: 42px;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: #60a5fa;
+}
+
+/* Detail rows */
 
 .detail-row {
-  display: grid;
-  grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.2fr);
-  gap: 18px;
+  display: flex;
   align-items: center;
-  padding: 15px 0;
-  border-bottom: 1px solid rgba(100, 116, 139, 0.22);
+  justify-content: space-between;
+  gap: 20px;
+  padding: 13px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
 }
 
 .detail-row:last-child {
   border-bottom: none;
 }
 
-.detail-row > span {
-  color: #91acd0;
-  font-size: 14px;
-  line-height: 1.45;
-}
-
-.detail-row > strong {
-  min-width: 0;
-  color: #f1f5f9;
-  font-size: 14px;
-  line-height: 1.45;
-  text-align: right;
-  overflow-wrap: anywhere;
-}
-
-.detail-row > strong .status-badge {
-  margin-left: auto;
-}
-
-/* =====================================================
-   STATUS CARD
-===================================================== */
-
-.detail-card:nth-child(3) {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(18, 34, 57, 1),
-      rgba(11, 24, 43, 1)
-    );
-}
-
-.detail-card:nth-child(3) .detail-row {
-  grid-template-columns: minmax(180px, 1fr) minmax(150px, auto);
-  min-height: 54px;
-}
-
-.detail-card:nth-child(3) .detail-row > span {
-  color: #9bb5d8;
+.detail-row span:first-child,
+.detail-label {
+  color: #94a3b8;
+  font-size: 13px;
   font-weight: 600;
 }
 
-.detail-card:nth-child(3) .detail-row > strong {
+.detail-row span:last-child,
+.detail-value {
   color: #f8fafc;
-}
-
-/* =====================================================
-   REJECTION MESSAGE
-===================================================== */
-
-.rejection-message {
-  margin-top: 22px;
-  padding: 18px;
-  border: 1px solid rgba(248, 113, 113, 0.35);
-  border-radius: 13px;
-  background: rgba(127, 29, 29, 0.2);
-}
-
-.rejection-message strong {
-  display: block;
-  margin-bottom: 8px;
-  color: #fca5a5;
   font-size: 14px;
+  font-weight: 700;
+  text-align: right;
+  word-break: break-word;
 }
 
-.rejection-message p {
-  margin: 0;
-  color: #fecaca;
-  font-size: 14px;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-
-/* =====================================================
-   PAYMENT PROOF LINK
-===================================================== */
-
-.proof-link {
-  display: inline-flex;
-  align-items: center;
+.detail-row.vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
-  margin-top: 22px;
-  padding: 11px 15px;
-  border-radius: 10px;
-  color: #bfdbfe;
-  background: rgba(37, 99, 235, 0.16);
-  border: 1px solid rgba(96, 165, 250, 0.3);
-  text-decoration: none;
+}
+
+.detail-row.vertical .detail-value {
+  text-align: left;
+}
+
+/* Referral status card */
+
+.referral-status-card {
+  margin-top: 24px;
+  padding: 26px;
+  border: 1px solid #263752;
+  border-radius: 18px;
+  background: #111e33;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
+}
+
+.referral-status-card h2 {
+  margin: 0 0 18px;
+  color: #f8fafc;
+  font-size: 20px;
+}
+
+.referral-status-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.referral-status-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #17263e;
+  border: 1px solid #2b3c56;
+}
+
+.referral-status-item span:first-child {
+  color: #cbd5e1;
   font-size: 13px;
-  font-weight: 800;
-  transition: all 0.2s ease;
+  font-weight: 600;
 }
 
-.proof-link:hover {
+.referral-status-item span:last-child {
   color: #ffffff;
-  background: rgba(37, 99, 235, 0.3);
-  border-color: #60a5fa;
+  font-weight: 800;
 }
 
-/* =====================================================
-   ADMIN ACTIONS
-===================================================== */
+/* Admin action section */
 
 .admin-actions {
-  width: 100%;
-  max-width: 1400px;
-  box-sizing: border-box;
-  margin: 26px auto 0;
+  margin-top: 30px;
   padding: 28px;
-  border: 1px solid #2b405d;
+  border: 1px solid #2c405c;
   border-radius: 20px;
-  background:
-    linear-gradient(
-      145deg,
-      rgba(22, 39, 63, 0.98),
-      rgba(13, 27, 47, 0.98)
-    );
-  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.18);
+  background: linear-gradient(
+    145deg,
+    #14243b 0%,
+    #101b2e 100%
+  );
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+  color: #f8fafc;
 }
 
 .admin-actions h2 {
-  margin: 0;
-  color: #f8fafc;
-  font-size: 24px;
+  margin: 0 0 8px;
+  color: #ffffff;
+  font-size: 22px;
   font-weight: 800;
 }
+
+.admin-actions > p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Action buttons */
 
 .action-buttons {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin-top: 20px;
+  margin-top: 22px;
 }
 
 .approve-action,
 .danger-action,
 .secondary-action {
-  min-height: 46px;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 12px 20px;
+  border: 1px solid transparent;
   border-radius: 11px;
-  padding: 12px 19px;
   font-size: 14px;
   font-weight: 800;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 .approve-action {
+  background: #16a34a;
   color: #ffffff;
-  background: linear-gradient(135deg, #16a34a, #15803d);
-  box-shadow: 0 7px 18px rgba(22, 163, 74, 0.2);
+  border-color: #22c55e;
+  box-shadow: 0 5px 16px rgba(22, 163, 74, 0.2);
 }
 
 .approve-action:hover {
-  background: linear-gradient(135deg, #22c55e, #16a34a);
+  background: #15803d;
   transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(22, 163, 74, 0.3);
+  box-shadow: 0 8px 22px rgba(22, 163, 74, 0.3);
 }
 
 .danger-action {
+  background: #dc2626;
   color: #ffffff;
-  background: linear-gradient(135deg, #dc2626, #b91c1c);
-  box-shadow: 0 7px 18px rgba(220, 38, 38, 0.18);
+  border-color: #ef4444;
+  box-shadow: 0 5px 16px rgba(220, 38, 38, 0.2);
 }
 
 .danger-action:hover {
-  background: linear-gradient(135deg, #ef4444, #dc2626);
+  background: #b91c1c;
   transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(220, 38, 38, 0.3);
 }
 
 .secondary-action {
-  color: #dbeafe;
-  background: #26364e;
-  border: 1px solid #3b4f6b;
+  background: #24344d;
+  color: #e2e8f0;
+  border-color: #475569;
 }
 
 .secondary-action:hover {
-  background: #344862;
-  border-color: #64748b;
+  background: #334155;
+  color: #ffffff;
+  transform: translateY(-2px);
 }
 
 .approve-action:disabled,
@@ -415,77 +393,83 @@
   box-shadow: none;
 }
 
-/* =====================================================
-   ACTION BOXES
-===================================================== */
+/* Action boxes */
 
 .action-box {
   margin-top: 24px;
-  padding: 25px;
-  border-radius: 17px;
-  border: 1px solid #344963;
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid #334155;
+  background: #17263e;
+  color: #f8fafc;
 }
 
 .action-box h3 {
-  margin: 0 0 9px;
-  color: #f8fafc;
-  font-size: 21px;
+  margin: 0 0 8px;
+  color: #ffffff;
+  font-size: 18px;
   font-weight: 800;
 }
 
 .action-box p {
-  margin: 0;
-  color: #9fb4d1;
+  margin: 0 0 20px;
+  color: #94a3b8;
   font-size: 14px;
   line-height: 1.6;
 }
 
 .rejection-box {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(127, 29, 29, 0.22),
-      rgba(69, 10, 10, 0.2)
-    );
-  border-color: rgba(248, 113, 113, 0.35);
+  background: linear-gradient(
+    145deg,
+    rgba(127, 29, 29, 0.22),
+    rgba(69, 10, 10, 0.18)
+  );
+  border-color: rgba(248, 113, 113, 0.45);
 }
 
 .payment-box {
-  background:
-    linear-gradient(
-      145deg,
-      rgba(20, 83, 45, 0.28),
-      rgba(6, 78, 59, 0.22)
-    );
-  border-color: rgba(74, 222, 128, 0.4);
+  background: linear-gradient(
+    145deg,
+    rgba(20, 83, 45, 0.3),
+    rgba(6, 78, 59, 0.2)
+  );
+  border-color: rgba(74, 222, 128, 0.45);
 }
 
+/* Form fields */
+
 .form-group {
-  margin: 22px 0;
+  margin: 20px 0;
 }
 
 .form-group label {
   display: block;
   margin-bottom: 8px;
   color: #dbeafe;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 800;
 }
 
 .action-box textarea,
 .action-box input[type="number"],
 .action-box input[type="text"],
-.action-box input[type="file"] {
+.action-box input[type="file"],
+.action-box input[type="date"] {
   width: 100%;
+  min-height: 46px;
   box-sizing: border-box;
-  padding: 13px 14px;
-  border: 1px solid #425875;
-  border-radius: 11px;
+  padding: 12px 14px;
+  border: 1px solid #475569;
+  border-radius: 10px;
   outline: none;
+  background: #0f1b2e;
   color: #f8fafc;
-  background: #101d31;
   font: inherit;
-  transition: all 0.2s ease;
+  font-size: 14px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
 
 .action-box textarea {
@@ -493,177 +477,127 @@
   resize: vertical;
 }
 
-.action-box textarea::placeholder,
-.action-box input::placeholder {
-  color: #7186a3;
-}
-
-.action-box textarea:focus,
-.action-box input:focus {
-  border-color: #60a5fa;
-  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.13);
-}
-
-.action-box input:disabled {
-  opacity: 1;
-  color: #86efac;
-  background: #102b25;
-  border-color: rgba(74, 222, 128, 0.35);
-  cursor: not-allowed;
-}
-
-/* =====================================================
-   PAYMENT HEADING
-===================================================== */
-
-.payment-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 22px;
-  margin-bottom: 18px;
-}
-
-.automatic-reward {
-  flex-shrink: 0;
-  padding: 13px 18px;
-  border: 1px solid rgba(74, 222, 128, 0.4);
-  border-radius: 13px;
-  color: #86efac;
-  background: rgba(22, 163, 74, 0.15);
-  font-size: 25px;
-  font-weight: 900;
-}
-
-.reward-rule {
-  margin: 18px 0 24px;
-  padding: 13px 15px;
-  border-radius: 11px;
-  color: #bbf7d0;
-  background: rgba(22, 163, 74, 0.12);
-  border: 1px solid rgba(74, 222, 128, 0.25);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.reward-rule strong {
-  color: #ffffff;
-}
-
-/* =====================================================
-   FILE INPUT
-===================================================== */
-
 .action-box input[type="file"] {
   padding: 10px;
-  color: #cbd5e1;
-  background: #101d31;
-}
-
-.action-box input[type="file"]::file-selector-button {
-  margin-right: 12px;
-  padding: 9px 13px;
-  border: none;
-  border-radius: 8px;
-  color: #ffffff;
-  background: #2563eb;
-  font-weight: 700;
   cursor: pointer;
 }
 
-/* =====================================================
-   PAYMENT PREVIEW
-===================================================== */
-
-.payment-proof-preview {
-  margin-top: 22px;
-  padding: 18px;
-  border-radius: 14px;
-  background: rgba(15, 23, 42, 0.65);
-  border: 1px solid #334155;
+.action-box input::placeholder,
+.action-box textarea::placeholder {
+  color: #64748b;
 }
 
-.payment-proof-preview h3 {
-  margin: 0 0 12px;
-  color: #dbeafe;
-  font-size: 15px;
+.action-box input:focus,
+.action-box textarea:focus {
+  border-color: #60a5fa;
+  background: #111f35;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
 }
 
-.payment-proof-preview img,
-.payment-preview img {
-  display: block;
-  width: 100%;
-  max-width: 380px;
-  max-height: 430px;
-  object-fit: contain;
-  margin: 0;
-  border: 1px solid #475569;
+/* Payment amount preview */
+
+.payment-amount-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 18px 0;
+  padding: 16px 18px;
+  border: 1px solid rgba(74, 222, 128, 0.35);
   border-radius: 12px;
-  background: #020617;
+  background: rgba(22, 163, 74, 0.12);
 }
 
-/* =====================================================
-   PAYMENT SUCCESS
-===================================================== */
-
-.payment-success-message {
-  width: 100%;
-  max-width: 1400px;
-  box-sizing: border-box;
-  margin: 26px auto 0;
-  padding: 25px;
-  border: 1px solid rgba(74, 222, 128, 0.4);
-  border-radius: 18px;
+.payment-amount-preview span:first-child {
   color: #bbf7d0;
-  background:
-    linear-gradient(
-      145deg,
-      rgba(20, 83, 45, 0.3),
-      rgba(6, 78, 59, 0.22)
-    );
-}
-
-.payment-success-message strong {
-  color: #86efac;
-}
-
-.payment-success-message p {
-  margin: 12px 0 0;
-  color: #cbd5e1;
-  line-height: 1.6;
-}
-
-.payment-success-message a {
-  display: inline-block;
-  margin-top: 18px;
-  color: #93c5fd;
-  font-weight: 800;
-  text-decoration: none;
-}
-
-.payment-success-message a:hover {
-  color: #dbeafe;
-  text-decoration: underline;
-}
-
-/* =====================================================
-   LOADING
-===================================================== */
-
-.admin-details-loading {
-  display: grid;
-  place-items: center;
-  min-height: 60vh;
-  color: #93c5fd;
-  font-size: 17px;
+  font-size: 13px;
   font-weight: 700;
 }
 
-/* =====================================================
-   RESPONSIVE DESIGN
-===================================================== */
+.payment-amount-preview strong {
+  color: #4ade80;
+  font-size: 24px;
+  font-weight: 900;
+}
 
-@media (max-width: 1100px) {
+/* Payment preview */
+
+.payment-preview,
+.payment-proof-preview {
+  margin-top: 20px;
+}
+
+.payment-preview h4,
+.payment-proof-preview h4 {
+  margin: 0 0 10px;
+  color: #dbeafe;
+  font-size: 14px;
+}
+
+.payment-preview img,
+.payment-proof-preview img {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  max-height: 420px;
+  object-fit: contain;
+  margin: 12px 0;
+  padding: 8px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid #475569;
+  background: #0f1b2e;
+}
+
+/* Existing payment proof */
+
+.payment-proof-card {
+  padding: 20px;
+  border: 1px solid rgba(74, 222, 128, 0.45);
+  border-radius: 14px;
+  background: rgba(20, 83, 45, 0.2);
+}
+
+.rejection-card {
+  padding: 20px;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  border-radius: 14px;
+  background: rgba(127, 29, 29, 0.2);
+}
+
+/* Date and metadata */
+
+.metadata-text {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.metadata-text strong {
+  color: #e2e8f0;
+}
+
+/* Action form buttons */
+
+.action-box .approve-action {
+  margin-top: 8px;
+}
+
+.action-box .secondary-action {
+  margin-top: 8px;
+}
+
+/* Prevent white browser autofill */
+
+.action-box input:-webkit-autofill,
+.action-box textarea:-webkit-autofill {
+  -webkit-text-fill-color: #f8fafc;
+  -webkit-box-shadow: 0 0 0 1000px #0f1b2e inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Mobile responsive */
+
+@media (max-width: 1024px) {
   .admin-details-page {
     padding: 28px 24px 50px;
   }
@@ -671,58 +605,50 @@
   .details-grid {
     grid-template-columns: 1fr;
   }
-
-  .detail-card:nth-child(3) {
-    grid-column: auto;
-  }
 }
 
 @media (max-width: 768px) {
   .admin-details-page {
-    padding: 24px 16px 45px;
+    padding: 22px 16px 40px;
   }
 
   .admin-details-header {
-    gap: 18px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
   }
 
   .admin-details-header h1 {
-    font-size: 30px;
+    font-size: 28px;
   }
 
-  .detail-card,
-  .admin-actions,
-  .payment-success-message {
-    padding: 20px;
-    border-radius: 15px;
-  }
-
-  .detail-card h2 {
-    font-size: 22px;
-  }
-
-  .detail-row,
-  .detail-card:nth-child(3) .detail-row {
+  .details-grid,
+  .referral-status-list {
     grid-template-columns: 1fr;
-    gap: 8px;
-    align-items: flex-start;
   }
 
-  .detail-row > strong {
+  .details-card,
+  .referral-status-card,
+  .admin-actions {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .detail-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .detail-row span:last-child,
+  .detail-value {
     text-align: left;
   }
 
-  .detail-row > strong .status-badge {
-    margin-left: 0;
-  }
-
-  .payment-heading {
+  .referral-status-item {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .automatic-reward {
-    font-size: 22px;
+    gap: 8px;
   }
 
   .action-buttons {
@@ -735,34 +661,533 @@
   .secondary-action {
     width: 100%;
   }
+
+  .payment-amount-preview {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 480px) {
-  .admin-details-page {
-    padding: 20px 12px 35px;
-  }
-
   .admin-details-header h1 {
-    font-size: 27px;
+    font-size: 24px;
   }
 
-  .admin-details-header p {
-    font-size: 12px;
+  .admin-actions h2 {
+    font-size: 20px;
   }
 
-  .back-button {
+  .action-box {
+    padding: 18px;
+  }
+
+  .action-box h3 {
+    font-size: 17px;
+  }
+}
+/* =========================================
+   ADMIN REFERRAL DETAILS - UI POLISH
+========================================= */
+
+.admin-referral-details-page {
+  min-height: 100vh;
+  padding: 32px 36px 70px;
+  box-sizing: border-box;
+  background: #0b1328;
+  color: #f8fafc;
+}
+
+/* Prevent content from hiding behind fixed header */
+.admin-referral-details-page,
+.admin-referral-details-page main {
+  scroll-margin-top: 110px;
+}
+
+.admin-details-container {
+  width: 100%;
+  max-width: 1450px;
+  margin: 0 auto;
+}
+
+/* Header */
+.admin-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin: 28px 0 30px;
+}
+
+.admin-details-header h1 {
+  margin: 0;
+  font-size: clamp(28px, 3vw, 42px);
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+}
+
+.admin-details-header p {
+  margin: 12px 0 0;
+  color: #94a3b8;
+  font-size: 15px;
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 10px 15px;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #111d35;
+  color: #dbeafe;
+  font-weight: 700;
+  text-decoration: none;
+  transition: 0.2s ease;
+}
+
+.back-button:hover {
+  background: #1e293b;
+  border-color: #60a5fa;
+  transform: translateX(-2px);
+}
+
+/* Referral ID */
+.referral-id-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 9px 13px;
+  border: 1px solid #263b5a;
+  border-radius: 10px;
+  background: #101d34;
+  color: #cbd5e1;
+  font-size: 14px;
+}
+
+.referral-id-box strong {
+  color: #f8fafc;
+  word-break: break-all;
+}
+
+/* Main details grid */
+.details-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 28px;
+}
+
+.details-card {
+  min-width: 0;
+  padding: 26px;
+  border: 1px solid #263957;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #122039, #0e192e);
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.18);
+}
+
+.details-card h2 {
+  margin: 0 0 22px;
+  color: #f8fafc;
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.details-card h2::after {
+  content: "";
+  display: block;
+  width: 42px;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 99px;
+  background: #38bdf8;
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  color: #93afd1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.detail-value {
+  color: #f8fafc;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Status card */
+.referral-status-card {
+  margin-top: 26px;
+  padding: 28px;
+  border: 1px solid #2b4162;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #111f37, #0c172b);
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.2);
+}
+
+.referral-status-card h2 {
+  margin: 0 0 18px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.status-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  min-height: 58px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.status-row:last-child {
+  border-bottom: none;
+}
+
+.status-row span:first-child {
+  color: #9db5d6;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.status-row strong {
+  color: #f8fafc;
+  font-size: 15px;
+  text-align: right;
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 800;
+  text-transform: capitalize;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.status-badge.pending {
+  background: #fff7d6;
+  color: #a16207;
+  border-color: #fde68a;
+}
+
+.status-badge.accepted,
+.status-badge.approved,
+.status-badge.verified,
+.status-badge.successful,
+.status-badge.completed,
+.status-badge.paid {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+
+.status-badge.rejected,
+.status-badge.failed {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.status-badge.not-earned,
+.status-badge.not-paid {
+  background: #e2e8f0;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+/* Amount row */
+.amount-value {
+  color: #4ade80 !important;
+  font-size: 19px !important;
+  font-weight: 900 !important;
+}
+
+/* Action section */
+.admin-actions {
+  margin-top: 28px;
+  padding: 28px;
+  border: 1px solid #2b4162;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #111f37, #0e192e);
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.2);
+}
+
+.admin-actions h2 {
+  margin: 0 0 8px;
+  color: #f8fafc;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.admin-actions > p {
+  margin: 0;
+  color: #94a3b8;
+  line-height: 1.6;
+}
+
+.action-box {
+  margin-top: 24px;
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid #334155;
+  background: #101c31;
+}
+
+.action-box h3 {
+  margin: 0 0 8px;
+  color: #f8fafc;
+  font-size: 18px;
+}
+
+.action-box p {
+  color: #94a3b8;
+  line-height: 1.6;
+}
+
+.payment-box {
+  background: linear-gradient(145deg, #102b27, #0d211f);
+  border-color: #166534;
+}
+
+.rejection-box {
+  background: linear-gradient(145deg, #321b25, #241620);
+  border-color: #7f1d1d;
+}
+
+/* Form fields */
+.form-group {
+  margin: 20px 0;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #dbeafe;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.action-box textarea,
+.action-box input[type="number"],
+.action-box input[type="file"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px 14px;
+  border: 1px solid #475569;
+  border-radius: 10px;
+  outline: none;
+  background: #0b1629;
+  color: #f8fafc;
+  font: inherit;
+  transition: 0.2s ease;
+}
+
+.action-box textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.action-box textarea:focus,
+.action-box input[type="number"]:focus,
+.action-box input[type="file"]:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14);
+}
+
+/* Buttons */
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.approve-action,
+.danger-action,
+.secondary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.approve-action {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.approve-action:hover {
+  background: #15803d;
+  transform: translateY(-1px);
+}
+
+.danger-action {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.danger-action:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.secondary-action {
+  background: #334155;
+  color: #f8fafc;
+}
+
+.secondary-action:hover {
+  background: #475569;
+}
+
+.approve-action:disabled,
+.danger-action:disabled,
+.secondary-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Alerts */
+.admin-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 18px;
+  margin: 20px 0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.admin-alert.error {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.admin-alert.success {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+/* Payment preview */
+.payment-preview,
+.payment-proof-preview {
+  margin-top: 20px;
+}
+
+.payment-preview img,
+.payment-proof-preview img {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  max-height: 420px;
+  object-fit: contain;
+  margin-top: 12px;
+  padding: 8px;
+  border: 1px solid #475569;
+  border-radius: 12px;
+  background: #0b1629;
+}
+
+.payment-proof-card {
+  border: 1px solid #22c55e;
+  background: #102b27;
+}
+
+.rejection-card {
+  border: 1px solid #ef4444;
+  background: #321b25;
+}
+
+/* Mobile */
+@media (max-width: 1000px) {
+  .details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-referral-details-page {
+    padding: 24px 16px 50px;
+  }
+
+  .admin-details-header {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .details-card,
+  .referral-status-card,
+  .admin-actions {
+    padding: 20px;
+  }
+
+  .detail-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .detail-value {
+    text-align: left;
+  }
+
+  .status-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .status-row strong,
+  .status-row .status-badge {
+    justify-self: start;
+    text-align: left;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+
+  .approve-action,
+  .danger-action,
+  .secondary-action {
     width: 100%;
-    justify-content: center;
-  }
-
-  .detail-card,
-  .admin-actions,
-  .action-box,
-  .payment-success-message {
-    padding: 17px;
-  }
-
-  .card-label {
-    font-size: 11px;
   }
 }
