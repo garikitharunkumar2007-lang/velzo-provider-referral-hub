@@ -4,6 +4,7 @@ import {
   collection,
   onSnapshot,
   query,
+  where,
 } from "firebase/firestore";
 
 import {
@@ -12,7 +13,6 @@ import {
 } from "firebase/auth";
 
 import { db } from "../firebase/firebaseConfig";
-import { referralBelongsToUser } from "../utils/referralIdentity";
 
 import "./Earnings.css";
 
@@ -27,6 +27,32 @@ function normalizeStatus(value) {
 }
 
 /* -------------------------------------------------
+   Check whether referral belongs to logged-in user
+------------------------------------------------- */
+function referralBelongsToUser(referral, user) {
+  if (!referral || !user) {
+    return false;
+  }
+
+  const userId = String(user.uid || "").trim();
+
+  const possibleReferrerIds = [
+    referral.referrerId,
+    referral.referrerUID,
+    referral.referrerUid,
+    referral.userId,
+    referral.createdBy,
+    referral.ownerId,
+    referral.referrer?.uid,
+    referral.user?.uid,
+  ]
+    .filter(Boolean)
+    .map((value) => String(value).trim());
+
+  return possibleReferrerIds.includes(userId);
+}
+
+/* -------------------------------------------------
    Convert Firebase Timestamp / Date / String
 ------------------------------------------------- */
 function getDateValue(value) {
@@ -35,7 +61,7 @@ function getDateValue(value) {
   }
 
   try {
-    if (typeof value?.toDate === "function") {
+    if (typeof value.toDate === "function") {
       return value.toDate();
     }
 
@@ -43,8 +69,11 @@ function getDateValue(value) {
       return value;
     }
 
-    if (typeof value === "object" && value.seconds) {
-      return new Date(value.seconds * 1000);
+    if (
+      typeof value === "object" &&
+      value.seconds !== undefined
+    ) {
+      return new Date(Number(value.seconds) * 1000);
     }
 
     if (typeof value === "number") {
@@ -52,7 +81,11 @@ function getDateValue(value) {
     }
 
     if (typeof value === "string") {
-      return new Date(value);
+      const date = new Date(value);
+
+      return Number.isNaN(date.getTime())
+        ? null
+        : date;
     }
 
     return null;
@@ -79,17 +112,19 @@ function formatDate(value) {
 }
 
 /* -------------------------------------------------
-   Get reward amount from all possible fields
+   Get reward amount
 
-   Important:
-   Firebase currently contains:
+   Firebase may contain:
    reward: 0
    paymentAmount: 4
 
-   Therefore paymentAmount must be checked
-   before reward.
+   Therefore paymentAmount is checked first.
 ------------------------------------------------- */
 function getReferralReward(referral) {
+  if (!referral) {
+    return 0;
+  }
+
   const possibleValues = [
     referral.paymentAmount,
     referral.rewardAmount,
@@ -109,7 +144,7 @@ function getReferralReward(referral) {
 
   const numericValue = Number(validValue);
 
-  if (Number.isNaN(numericValue)) {
+  if (!Number.isFinite(numericValue)) {
     return 0;
   }
 
@@ -117,7 +152,7 @@ function getReferralReward(referral) {
 }
 
 /* -------------------------------------------------
-   Check whether referral reward is successfully earned
+   Check whether referral is successfully earned
 ------------------------------------------------- */
 function isEarnedReferral(referral) {
   const paymentStatus = normalizeStatus(
@@ -132,37 +167,40 @@ function isEarnedReferral(referral) {
     referral.status
   );
 
-  const paymentAmount = getReferralReward(referral);
+  const adminStatus = normalizeStatus(
+    referral.adminStatus
+  );
 
-  const isPaymentCompleted =
+  const reward = getReferralReward(referral);
+
+  const paymentCompleted =
     paymentStatus === "completed" ||
     paymentStatus === "complete" ||
     paymentStatus === "paid";
 
-  const isRewardPaid =
+  const rewardPaid =
     rewardStatus === "earned" ||
     rewardStatus === "paid" ||
     rewardStatus === "completed";
 
-  const isReferralPaid =
+  const referralPaid =
     referralStatus === "paid" ||
-    referralStatus === "payment_completed";
+    referralStatus === "payment_completed" ||
+    referralStatus === "successful";
 
-  /*
-   * A referral is counted only when:
-   * 1. Payment is completed/paid
-   * OR
-   * 2. Reward is earned/paid
-   * OR
-   * 3. Referral status is paid
-   *
-   * Reward amount must be greater than zero.
-   */
+  const adminApproved =
+    adminStatus === "approved" ||
+    adminStatus === "accepted" ||
+    adminStatus === "successful";
+
   return (
-    paymentAmount > 0 &&
-    (isPaymentCompleted ||
-      isRewardPaid ||
-      isReferralPaid)
+    reward > 0 &&
+    (
+      paymentCompleted ||
+      rewardPaid ||
+      referralPaid ||
+      adminApproved
+    )
   );
 }
 
@@ -208,10 +246,12 @@ function getUnionId(referral) {
 }
 
 /* -------------------------------------------------
-   Sort referrals by created date
+   Get referral created time
 ------------------------------------------------- */
 function getCreatedTime(referral) {
   const date =
+    getDateValue(referral.paidAt) ||
+    getDateValue(referral.rewardPaidAt) ||
     getDateValue(referral.createdAt) ||
     getDateValue(referral.submittedAt) ||
     getDateValue(referral.updatedAt);
@@ -253,16 +293,7 @@ export default function Earnings() {
         setErrorMessage("");
 
         /*
-         * Do not filter rewardStatus in Firestore.
-         *
-         * Existing documents use different values:
-         * rewardStatus: paid
-         * rewardStatus: earned
-         * status: paid
-         * paymentStatus: completed
-         *
-         * So we load the user's referrals and safely
-         * identify earned records in JavaScript.
+         * Load referrals using the logged-in user's UID.
          */
         const earningsQuery = query(
           collection(db, "referrals"),
@@ -286,9 +317,9 @@ export default function Earnings() {
                 isEarnedReferral(referral)
               )
               .sort(
-                (a, b) =>
-                  getCreatedTime(b) -
-                  getCreatedTime(a)
+                (firstReferral, secondReferral) =>
+                  getCreatedTime(secondReferral) -
+                  getCreatedTime(firstReferral)
               );
 
             setReferrals(earnedReferrals);
@@ -320,12 +351,12 @@ export default function Earnings() {
   }, []);
 
   /* -------------------------------------------------
-     Calculate total earned
+     Total earned amount
   ------------------------------------------------- */
   const totalEarned = useMemo(() => {
     return referrals.reduce(
-      (sum, referral) =>
-        sum + getReferralReward(referral),
+      (total, referral) =>
+        total + getReferralReward(referral),
       0
     );
   }, [referrals]);
@@ -447,6 +478,15 @@ export default function Earnings() {
                         referral.updatedAt ||
                         referral.createdAt
                     )}
+                  </small>
+
+                  <small>
+                    Phone: {getProviderPhone(referral)}
+                  </small>
+
+                  <small>
+                    Union / Labour ID:{" "}
+                    {getUnionId(referral)}
                   </small>
                 </div>
 
