@@ -605,7 +605,7 @@ export default function AdminReferralDetails() {
 
   if (loading) {
     return (
-      <div className="admin-details-page">
+      <div className="admin-details-page referral-details-page">
         <div className="details-loading-card">
           <div className="loading-spinner" />
           <p>Loading referral details...</p>
@@ -616,7 +616,7 @@ export default function AdminReferralDetails() {
 
   if (!referral) {
     return (
-      <div className="admin-details-page">
+      <div className="admin-details-page referral-details-page">
         <div className="details-empty-card">
           <h2>Referral not found</h2>
           <p>The requested referral does not exist.</p>
@@ -633,7 +633,7 @@ export default function AdminReferralDetails() {
   }
 
   return (
-    <div className="admin-details-page">
+    <div className="admin-details-page referral-details-page">
       <div className="admin-details-header">
         <div>
           <button

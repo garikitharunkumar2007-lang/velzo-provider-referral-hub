@@ -681,91 +681,145 @@
     width: 100%;
   }
 }
-/* =========================================
-   ADMIN REFERRAL DETAILS - TEXT VISIBILITY
-   ========================================= */
 
-.referral-details-page {
-  color: #172033;
+/* =========================================================
+   FINAL OVERRIDES
+   These selectors intentionally target the actual JSX root:
+   .admin-details-page
+   ========================================================= */
+
+.admin-details-page {
+  position: relative;
+  isolation: isolate;
+  padding-top: 76px;
+  color: #e2e8f0;
 }
 
-/* White information cards */
-.referral-details-page .details-card,
-.referral-details-page .referrer-card,
-.referral-details-page .provider-card,
-.referral-details-page .information-card {
-  background: #ffffff;
-  color: #172033;
+/* Keep the page below a fixed admin header */
+.admin-details-page > * {
+  position: relative;
+  z-index: 1;
 }
 
-/* Card headings */
-.referral-details-page .card-title,
-.referral-details-page h2,
-.referral-details-page h3,
-.referral-details-page h4 {
+/* Readable white information cards */
+.admin-details-page .details-card,
+.admin-details-page .proof-card {
+  background: #ffffff !important;
+  color: #172033 !important;
+  border-color: #dbe4f0 !important;
+  box-shadow: 0 16px 40px rgba(2, 8, 23, 0.18);
+}
+
+.admin-details-page .details-card .card-heading h2,
+.admin-details-page .proof-card .card-heading h2 {
   color: #172033 !important;
 }
 
-/* Card descriptions */
-.referral-details-page .card-description,
-.referral-details-page .section-description {
+.admin-details-page .details-card .card-heading p,
+.admin-details-page .proof-card .card-heading p {
   color: #64748b !important;
 }
 
-/* Field labels */
-.referral-details-page .field-label,
-.referral-details-page .detail-label,
-.referral-details-page label {
+.admin-details-page .details-card .detail-label,
+.admin-details-page .proof-card .detail-label {
   color: #64748b !important;
 }
 
-/* Field values */
-.referral-details-page .field-value,
-.referral-details-page .detail-value,
-.referral-details-page .value {
+.admin-details-page .details-card .detail-value,
+.admin-details-page .proof-card .detail-value {
   color: #172033 !important;
-  font-weight: 700;
+  font-weight: 750;
 }
 
-/* Important provider values */
-.referral-details-page .provider-name,
-.referral-details-page .highlight-value {
+.admin-details-page .details-card .highlight-value {
   color: #0284c7 !important;
+  font-weight: 850;
+}
+
+.admin-details-page .details-card .detail-row {
+  border-bottom-color: #e2e8f0 !important;
+}
+
+/* Dark status and action sections remain readable */
+.admin-details-page .status-card,
+.admin-details-page .admin-actions {
+  background: linear-gradient(145deg, #182a45, #0d182b) !important;
+  color: #f8fafc !important;
+}
+
+.admin-details-page .status-card .card-heading h2,
+.admin-details-page .admin-actions .card-heading h2,
+.admin-details-page .status-card .card-heading p,
+.admin-details-page .admin-actions .card-heading p {
+  color: #f8fafc !important;
+}
+
+.admin-details-page .status-card .card-heading p,
+.admin-details-page .admin-actions .card-heading p {
+  color: #a8b7cd !important;
+}
+
+.admin-details-page .status-card .status-row > span:first-child {
+  color: #a8b7cd !important;
+}
+
+.admin-details-page .status-card .status-row strong {
+  color: #f8fafc !important;
+}
+
+.admin-details-page .status-card .status-row {
+  border-bottom-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+/* Form controls */
+.admin-details-page .action-box textarea {
+  display: block;
+  width: 100%;
+  min-height: 115px;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 13px 14px;
+  border: 1px solid #475569;
+  border-radius: 11px;
+  outline: none;
+  color: #e2e8f0;
+  background: #0f172a;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.admin-details-page .action-box textarea:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+}
+
+.admin-details-page .action-box > label {
+  display: block;
+  margin: 18px 0 9px;
+  color: #f8fafc;
+  font-size: 14px;
   font-weight: 800;
 }
 
-/* Dividers */
-.referral-details-page .detail-row {
-  border-bottom: 1px solid #e2e8f0;
+/* Prevent inherited global light/dark rules from changing card text */
+.admin-details-page .details-card *,
+.admin-details-page .proof-card * {
+  text-shadow: none;
 }
 
-/* Referral status section */
-.referral-details-page .status-card {
-  background: #172b49;
-  color: #ffffff;
-}
-
-.referral-details-page .status-card h2,
-.referral-details-page .status-card h3,
-.referral-details-page .status-card p,
-.referral-details-page .status-card span {
-  color: #ffffff;
-}
-
-/* Prevent dark-mode global text from breaking white cards */
-.dark .referral-details-page .details-card,
-.dark .referral-details-page .referrer-card,
-.dark .referral-details-page .provider-card,
-.dark .referral-details-page .information-card {
-  background: #ffffff;
+.admin-details-page .details-card .card-heading,
+.admin-details-page .proof-card .card-heading {
   color: #172033;
 }
 
-.dark .referral-details-page .details-card h2,
-.dark .referral-details-page .details-card h3,
-.dark .referral-details-page .details-card h4,
-.dark .referral-details-page .details-card p,
-.dark .referral-details-page .details-card span,
-.dark .referral-details-page .details-card label {
-  color: inherit;
+@media (max-width: 1000px) {
+  .admin-details-page {
+    padding-top: 62px;
+  }
+}
+
+@media (max-width: 650px) {
+  .admin-details-page {
+    padding-top: 32px;
+  }
 }
