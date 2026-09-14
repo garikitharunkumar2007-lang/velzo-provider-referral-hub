@@ -177,6 +177,58 @@ function getStoredUser() {
   return {};
 }
 
+function normalizeIdentity(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "");
+}
+
+function normalizePhone(value) {
+  return String(value ?? "")
+    .replace(/\D/g, "")
+    .replace(/^91/, "")
+    .replace(/^0/, "");
+}
+
+function hasSuccessfulPayment(referral) {
+  const status = normalizeStatus(referral.status);
+  const paymentStatus = normalizeStatus(referral.paymentStatus);
+  const rewardStatus = normalizeStatus(referral.rewardStatus);
+
+  return (
+    status === "paid" ||
+    status === "successful" ||
+    status === "completed" ||
+    paymentStatus === "paid" ||
+    paymentStatus === "completed" ||
+    rewardStatus === "paid"
+  );
+}
+
+function getRewardAmount(referral) {
+  const values = [
+    referral.reward,
+    referral.rewardAmount,
+    referral.rewardEarned,
+    referral.referralReward,
+    referral.paymentAmount,
+    referral.earnings,
+    referral.amount,
+  ];
+
+  for (const value of values) {
+    if (value !== undefined && value !== null && value !== "") {
+      const amount = Number(String(value).replace(/₹/g, "").replace(/,/g, ""));
+      if (Number.isFinite(amount)) {
+        return amount;
+      }
+    }
+  }
+
+  return 0;
+}
+
 /* =====================================================
    DASHBOARD
 ===================================================== */
@@ -221,6 +273,26 @@ function Dashboard() {
     currentUser.id ||
     currentUser.userId ||
     "";
+
+  const userIdentityValues = [
+    currentUser.uid,
+    currentUser.id,
+    currentUser.userId,
+    currentUser.email,
+    currentUser.phoneNumber,
+    currentUser.phone,
+    currentUser.mobile,
+  ].filter(Boolean);
+
+  const userIdentitySet = new Set(
+    userIdentityValues.map(normalizeIdentity)
+  );
+
+  const userPhoneSet = new Set(
+    userIdentityValues
+      .map(normalizePhone)
+      .filter((value) => value.length >= 10)
+  );
 
   const userName =
     currentUser.displayName ||
@@ -357,21 +429,13 @@ function Dashboard() {
                 referrer.fullName ||
                 "Unknown Referrer";
 
-              const status =
-                normalizeStatus(
-                  data.status ||
-                    data.verificationStatus ||
-                    data.rewardStatus ||
-                    "pending"
-                );
-
-              const reward =
-                Number(
-                  data.rewardAmount
-                ) ||
-                Number(data.reward) ||
-                Number(data.paymentAmount) ||
-                0;
+              const referrerPhone =
+                data.referrerPhone ||
+                data.referrerMobile ||
+                data.referrerPhoneNumber ||
+                referrer.phone ||
+                referrer.phoneNumber ||
+                "";
 
               const paymentStatus =
                 normalizeStatus(
@@ -379,12 +443,30 @@ function Dashboard() {
                     "not_paid"
                 );
 
+              const status =
+                hasSuccessfulPayment({
+                  ...data,
+                  paymentStatus,
+                })
+                  ? "paid"
+                  : normalizeStatus(
+                      data.status ||
+                        data.verificationStatus ||
+                        data.rewardStatus ||
+                        "pending"
+                    );
+
+              const reward =
+                getRewardAmount(data);
+
               return {
                 id: documentSnapshot.id,
 
                 referrerId,
 
                 referrerName,
+
+                referrerPhone,
 
                 providerName,
 
@@ -423,14 +505,29 @@ function Dashboard() {
                * an ID yet, keep the data visible
                * instead of redirecting to login.
                */
-              if (!userId) {
+              if (userIdentitySet.size === 0) {
                 return true;
               }
 
-              return (
-                !referral.referrerId ||
-                referral.referrerId === userId
+              const referralIdentityValues = [
+                referral.referrerId,
+                referral.referrerPhone,
+              ].filter(Boolean);
+
+              if (referralIdentityValues.length === 0) {
+                return true;
+              }
+
+              const idMatch = referralIdentityValues.some((value) =>
+                userIdentitySet.has(normalizeIdentity(value))
               );
+
+              const phoneMatch = referralIdentityValues.some((value) => {
+                const normalized = normalizePhone(value);
+                return normalized.length >= 10 && userPhoneSet.has(normalized);
+              });
+
+              return idMatch || phoneMatch;
             });
 
         setReferrals(referralList);
@@ -495,11 +592,7 @@ function Dashboard() {
 
     const successfulReferrals =
       referrals.filter((referral) =>
-        SUCCESS_STATUSES.includes(
-          normalizeStatus(
-            referral.status
-          )
-        )
+        hasSuccessfulPayment(referral)
       ).length;
 
     const rejectedReferrals =
@@ -524,24 +617,10 @@ function Dashboard() {
             );
 
           const isSuccessful =
-            SUCCESS_STATUSES.includes(
-              status
-            );
+            hasSuccessfulPayment(referral);
 
-          const isPaid =
-            paymentStatus === "paid" ||
-            paymentStatus === "completed";
-
-          if (
-            isSuccessful ||
-            isPaid
-          ) {
-            return (
-              total +
-              Number(
-                referral.reward || 0
-              )
-            );
+          if (isSuccessful) {
+            return total + getRewardAmount(referral);
           }
 
           return total;

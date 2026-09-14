@@ -582,35 +582,44 @@ export default function AdminReferralDetails() {
 
       providerName:
         referral.providerName ||
+        referral.fullName ||
         referral.name ||
         "",
 
       providerPhone:
         referral.providerPhone ||
+        referral.phoneNumber ||
         referral.phone ||
         "",
 
       phone:
         referral.providerPhone ||
+        referral.phoneNumber ||
         referral.phone ||
         "",
 
       unionId:
         referral.unionId ||
+        referral.labourId ||
+        referral.laborId ||
+        referral.unionNumber ||
         "",
 
       address:
         referral.address ||
+        referral.providerAddress ||
         "",
 
       role:
         referral.serviceType ||
         referral.role ||
+        referral.providerRole ||
         "",
 
       serviceType:
         referral.serviceType ||
         referral.role ||
+        referral.providerRole ||
         "",
 
       referrerId:
@@ -649,6 +658,37 @@ export default function AdminReferralDetails() {
 
       originalReferralId:
         referralId,
+
+      source:
+        "referral_payment",
+
+      provider: {
+        name:
+          referral.providerName ||
+          referral.fullName ||
+          referral.name ||
+          "",
+        unionId:
+          referral.unionId ||
+          referral.labourId ||
+          referral.laborId ||
+          referral.unionNumber ||
+          "",
+        phone:
+          referral.providerPhone ||
+          referral.phoneNumber ||
+          referral.phone ||
+          "",
+        address:
+          referral.address ||
+          referral.providerAddress ||
+          "",
+        role:
+          referral.serviceType ||
+          referral.role ||
+          referral.providerRole ||
+          "",
+      },
 
       verifiedAt: serverTimestamp(),
 
