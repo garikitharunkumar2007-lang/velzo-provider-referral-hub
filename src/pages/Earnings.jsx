@@ -17,7 +17,7 @@ import { db } from "../firebase/firebaseConfig";
 import "./Earnings.css";
 
 /* -------------------------------------------------
-   Normalize status
+   Normalize status values
 ------------------------------------------------- */
 function normalizeStatus(value) {
   return String(value || "")
@@ -27,117 +27,203 @@ function normalizeStatus(value) {
 }
 
 /* -------------------------------------------------
-   Check whether a referral is earned
--------------------------------------------------
-   Supported examples:
-
-   status: "paid"
-   status: "earned"
-   status: "successful"
-   status: "approved"
-
-   rewardStatus: "earned"
-   rewardStatus: "paid"
+   Convert Firebase Timestamp / Date / String
 ------------------------------------------------- */
-function isEarnedReferral(referral) {
-  const status = normalizeStatus(referral.status);
-  const rewardStatus = normalizeStatus(referral.rewardStatus);
+function getDateValue(value) {
+  if (!value) {
+    return null;
+  }
 
-  const earnedStatuses = [
-    "paid",
-    "earned",
-    "successful",
-    "approved",
-    "completed",
-  ];
+  try {
+    if (typeof value?.toDate === "function") {
+      return value.toDate();
+    }
 
-  return (
-    earnedStatuses.includes(status) ||
-    earnedStatuses.includes(rewardStatus)
-  );
+    if (value instanceof Date) {
+      return value;
+    }
+
+    if (typeof value === "object" && value.seconds) {
+      return new Date(value.seconds * 1000);
+    }
+
+    if (typeof value === "number") {
+      return new Date(value);
+    }
+
+    if (typeof value === "string") {
+      return new Date(value);
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Date conversion error:", error);
+    return null;
+  }
 }
 
 /* -------------------------------------------------
-   Get reward amount from possible Firestore fields
+   Format date
+------------------------------------------------- */
+function formatDate(value) {
+  const date = getDateValue(value);
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+/* -------------------------------------------------
+   Get reward amount from all possible fields
+
+   Important:
+   Firebase currently contains:
+   reward: 0
+   paymentAmount: 4
+
+   Therefore paymentAmount must be checked
+   before reward.
 ------------------------------------------------- */
 function getReferralReward(referral) {
   const possibleValues = [
-    referral.reward,
+    referral.paymentAmount,
     referral.rewardAmount,
-    referral.amount,
-    referral.earnings,
     referral.rewardEarned,
     referral.referralReward,
+    referral.earnings,
+    referral.amount,
+    referral.reward,
   ];
 
-  const existingValue = possibleValues.find(
+  const validValue = possibleValues.find(
     (value) =>
       value !== undefined &&
       value !== null &&
       value !== ""
   );
 
-  const numericValue = Number(existingValue);
+  const numericValue = Number(validValue);
 
-  return Number.isFinite(numericValue)
-    ? numericValue
-    : 0;
+  if (Number.isNaN(numericValue)) {
+    return 0;
+  }
+
+  return numericValue;
 }
 
 /* -------------------------------------------------
-   Get provider name safely
+   Check whether referral reward is successfully earned
+------------------------------------------------- */
+function isEarnedReferral(referral) {
+  const paymentStatus = normalizeStatus(
+    referral.paymentStatus
+  );
+
+  const rewardStatus = normalizeStatus(
+    referral.rewardStatus
+  );
+
+  const referralStatus = normalizeStatus(
+    referral.status
+  );
+
+  const paymentAmount = getReferralReward(referral);
+
+  const isPaymentCompleted =
+    paymentStatus === "completed" ||
+    paymentStatus === "complete" ||
+    paymentStatus === "paid";
+
+  const isRewardPaid =
+    rewardStatus === "earned" ||
+    rewardStatus === "paid" ||
+    rewardStatus === "completed";
+
+  const isReferralPaid =
+    referralStatus === "paid" ||
+    referralStatus === "payment_completed";
+
+  /*
+   * A referral is counted only when:
+   * 1. Payment is completed/paid
+   * OR
+   * 2. Reward is earned/paid
+   * OR
+   * 3. Referral status is paid
+   *
+   * Reward amount must be greater than zero.
+   */
+  return (
+    paymentAmount > 0 &&
+    (isPaymentCompleted ||
+      isRewardPaid ||
+      isReferralPaid)
+  );
+}
+
+/* -------------------------------------------------
+   Get provider name
 ------------------------------------------------- */
 function getProviderName(referral) {
   return (
     referral.providerName ||
+    referral.provider?.name ||
     referral.name ||
     referral.fullName ||
-    referral.provider?.name ||
     "Provider"
   );
 }
 
 /* -------------------------------------------------
-   Get referral date for sorting
+   Get provider phone
 ------------------------------------------------- */
-function getDateValue(value) {
-  if (!value) {
-    return 0;
-  }
-
-  try {
-    if (typeof value?.toMillis === "function") {
-      return value.toMillis();
-    }
-
-    if (value?.seconds) {
-      return value.seconds * 1000;
-    }
-
-    if (value instanceof Date) {
-      return value.getTime();
-    }
-
-    const date = new Date(value).getTime();
-
-    return Number.isFinite(date) ? date : 0;
-  } catch {
-    return 0;
-  }
+function getProviderPhone(referral) {
+  return (
+    referral.providerPhone ||
+    referral.phone ||
+    referral.phoneNumber ||
+    referral.mobile ||
+    referral.mobileNumber ||
+    "—"
+  );
 }
 
 /* -------------------------------------------------
-   Format reward amount
+   Get Union / Labour ID
 ------------------------------------------------- */
-function formatMoney(value) {
-  return Number(value || 0).toLocaleString("en-IN");
+function getUnionId(referral) {
+  return (
+    referral.unionId ||
+    referral.unionID ||
+    referral.labourId ||
+    referral.labourID ||
+    referral.unionLabourId ||
+    "Not provided"
+  );
+}
+
+/* -------------------------------------------------
+   Sort referrals by created date
+------------------------------------------------- */
+function getCreatedTime(referral) {
+  const date =
+    getDateValue(referral.createdAt) ||
+    getDateValue(referral.submittedAt) ||
+    getDateValue(referral.updatedAt);
+
+  return date ? date.getTime() : 0;
 }
 
 /* -------------------------------------------------
    Earnings Component
 ------------------------------------------------- */
 export default function Earnings() {
-  const [allReferrals, setAllReferrals] = useState([]);
+  const [referrals, setReferrals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -149,18 +235,17 @@ export default function Earnings() {
     const unsubscribeAuth = onAuthStateChanged(
       auth,
       (user) => {
+        if (unsubscribeReferrals) {
+          unsubscribeReferrals();
+          unsubscribeReferrals = null;
+        }
+
         if (!user) {
-          setAllReferrals([]);
+          setReferrals([]);
           setLoading(false);
           setErrorMessage(
             "Please login to view your earnings."
           );
-
-          if (unsubscribeReferrals) {
-            unsubscribeReferrals();
-            unsubscribeReferrals = null;
-          }
-
           return;
         }
 
@@ -168,10 +253,17 @@ export default function Earnings() {
         setErrorMessage("");
 
         /*
-          Only one Firestore where condition is used.
-          This avoids rewardStatus mismatch and
-          unnecessary composite-index problems.
-        */
+         * Do not filter rewardStatus in Firestore.
+         *
+         * Existing documents use different values:
+         * rewardStatus: paid
+         * rewardStatus: earned
+         * status: paid
+         * paymentStatus: completed
+         *
+         * So we load the user's referrals and safely
+         * identify earned records in JavaScript.
+         */
         const earningsQuery = query(
           collection(db, "referrals"),
           where("referrerId", "==", user.uid)
@@ -180,18 +272,24 @@ export default function Earnings() {
         unsubscribeReferrals = onSnapshot(
           earningsQuery,
           (snapshot) => {
-            const referralData = snapshot.docs
-              .map((document) => ({
+            const allReferrals = snapshot.docs.map(
+              (document) => ({
                 id: document.id,
                 ...document.data(),
-              }))
+              })
+            );
+
+            const earnedReferrals = allReferrals
+              .filter((referral) =>
+                isEarnedReferral(referral)
+              )
               .sort(
                 (a, b) =>
-                  getDateValue(b.createdAt) -
-                  getDateValue(a.createdAt)
+                  getCreatedTime(b) -
+                  getCreatedTime(a)
               );
 
-            setAllReferrals(referralData);
+            setReferrals(earnedReferrals);
             setLoading(false);
           },
           (error) => {
@@ -200,7 +298,7 @@ export default function Earnings() {
               error
             );
 
-            setAllReferrals([]);
+            setReferrals([]);
             setLoading(false);
             setErrorMessage(
               "Unable to load earnings. Please try again."
@@ -219,87 +317,74 @@ export default function Earnings() {
     };
   }, []);
 
-  /*
-    Only paid/earned/successful/approved referrals
-    are included in earnings.
-  */
-  const earnedReferrals = useMemo(() => {
-    return allReferrals.filter(isEarnedReferral);
-  }, [allReferrals]);
-
   /* -------------------------------------------------
-     Total earned amount
+     Calculate total earned
   ------------------------------------------------- */
   const totalEarned = useMemo(() => {
-    return earnedReferrals.reduce(
+    return referrals.reduce(
       (sum, referral) =>
         sum + getReferralReward(referral),
       0
     );
-  }, [earnedReferrals]);
+  }, [referrals]);
 
   /* -------------------------------------------------
-     ₹4 referrals
+     Count ₹4 referrals
   ------------------------------------------------- */
   const fourRupee = useMemo(() => {
-    return earnedReferrals.filter(
+    return referrals.filter(
       (referral) =>
         getReferralReward(referral) === 4
     ).length;
-  }, [earnedReferrals]);
+  }, [referrals]);
 
   /* -------------------------------------------------
-     ₹3 referrals
+     Count ₹3 referrals
   ------------------------------------------------- */
   const threeRupee = useMemo(() => {
-    return earnedReferrals.filter(
+    return referrals.filter(
       (referral) =>
         getReferralReward(referral) === 3
     ).length;
-  }, [earnedReferrals]);
+  }, [referrals]);
 
   return (
     <div className="earnings-page">
       <div className="page-heading">
-        <p className="eyebrow">
-          VELZO
-        </p>
+        <p className="eyebrow">VELZO</p>
 
-        <h1>
-          Earnings
-        </h1>
+        <h1>Earnings</h1>
 
         <p>
-          Your rewards from successful provider referrals.
+          Your rewards from successful provider
+          referrals.
         </p>
       </div>
 
+      {errorMessage && (
+        <div className="empty-state">
+          {errorMessage}
+        </div>
+      )}
+
       <div className="earnings-hero">
-        <span>
-          TOTAL EARNED
-        </span>
+        <span>TOTAL EARNED</span>
 
         <strong>
-          ₹{formatMoney(totalEarned)}
+          ₹{totalEarned.toLocaleString("en-IN")}
         </strong>
 
         <small>
-          From {earnedReferrals.length} successful referral
-          {earnedReferrals.length !== 1
-            ? "s"
-            : ""}
+          From {referrals.length} successful referral
+          {referrals.length !== 1 ? "s" : ""}
         </small>
       </div>
 
       <div className="earnings-grid">
         <div className="earning-card">
-          <span>
-            ₹4 REFERRALS
-          </span>
+          <span>₹4 REFERRALS</span>
 
-          <strong>
-            {fourRupee}
-          </strong>
+          <strong>{fourRupee}</strong>
 
           <small>
             With Union / Labour ID
@@ -307,13 +392,9 @@ export default function Earnings() {
         </div>
 
         <div className="earning-card">
-          <span>
-            ₹3 REFERRALS
-          </span>
+          <span>₹3 REFERRALS</span>
 
-          <strong>
-            {threeRupee}
-          </strong>
+          <strong>{threeRupee}</strong>
 
           <small>
             Without Union / Labour ID
@@ -321,42 +402,27 @@ export default function Earnings() {
         </div>
 
         <div className="earning-card">
-          <span>
-            SUCCESSFUL
-          </span>
+          <span>SUCCESSFUL</span>
 
-          <strong>
-            {earnedReferrals.length}
-          </strong>
+          <strong>{referrals.length}</strong>
 
           <small>
-            Approved referrals
+            Paid referrals
           </small>
         </div>
       </div>
 
       <div className="earnings-list">
-        <h2>
-          Reward History
-        </h2>
+        <h2>Reward History</h2>
 
         {loading ? (
-          <p>
-            Loading...
-          </p>
-        ) : errorMessage ? (
-          <p>
-            {errorMessage}
-          </p>
-        ) : earnedReferrals.length === 0 ? (
-          <p>
-            No earned rewards yet.
-          </p>
+          <p>Loading...</p>
+        ) : referrals.length === 0 ? (
+          <p>No earned rewards yet.</p>
         ) : (
-          earnedReferrals.map((referral) => {
-            const reward = getReferralReward(
-              referral
-            );
+          referrals.map((referral) => {
+            const reward =
+              getReferralReward(referral);
 
             return (
               <div
@@ -371,10 +437,19 @@ export default function Earnings() {
                   <span>
                     Successful referral
                   </span>
+
+                  <small>
+                    {formatDate(
+                      referral.paidAt ||
+                        referral.rewardPaidAt ||
+                        referral.updatedAt ||
+                        referral.createdAt
+                    )}
+                  </small>
                 </div>
 
                 <strong>
-                  +₹{formatMoney(reward)}
+                  +₹{reward.toLocaleString("en-IN")}
                 </strong>
               </div>
             );
