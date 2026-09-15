@@ -1,404 +1,31 @@
-// src/pages/Earnings.jsx
-
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import {
   collection,
   onSnapshot,
   query,
+  where,
 } from "firebase/firestore";
+
+import {
+  getAuth,
+  onAuthStateChanged,
+} from "firebase/auth";
 
 import { db } from "../firebase/firebaseConfig";
 
 import "./Earnings.css";
 
 /* =====================================================
-   READ CURRENT VELZO USER
-===================================================== */
-
-function getStoredUser() {
-  const storageKeys = [
-    "velzoUser",
-    "currentUser",
-    "user",
-  ];
-
-  for (const key of storageKeys) {
-    try {
-      const localValue =
-        localStorage.getItem(key);
-
-      if (localValue) {
-        const parsedValue =
-          JSON.parse(localValue);
-
-        if (
-          parsedValue &&
-          typeof parsedValue === "object"
-        ) {
-          return parsedValue;
-        }
-      }
-    } catch (error) {
-      console.warn(
-        `Unable to read localStorage key: ${key}`,
-        error
-      );
-    }
-
-    try {
-      const sessionValue =
-        sessionStorage.getItem(key);
-
-      if (sessionValue) {
-        const parsedValue =
-          JSON.parse(sessionValue);
-
-        if (
-          parsedValue &&
-          typeof parsedValue === "object"
-        ) {
-          return parsedValue;
-        }
-      }
-    } catch (error) {
-      console.warn(
-        `Unable to read sessionStorage key: ${key}`,
-        error
-      );
-    }
-  }
-
-  return {};
-}
-
-/* =====================================================
-   NORMALIZE VALUE
-===================================================== */
-
-function normalizeValue(value) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "")
-    .replace(/[-_\s]/g, "");
-}
-
-/* =====================================================
-   NORMALIZE PHONE
-===================================================== */
-
-function normalizePhone(value) {
-  const digits = String(value ?? "")
-    .replace(/\D/g, "");
-
-  if (digits.length > 10) {
-    return digits.slice(-10);
-  }
-
-  return digits;
-}
-
-/* =====================================================
-   GET CURRENT USER IDENTITIES
-===================================================== */
-
-function getCurrentUserIdentities() {
-  const storedUser = getStoredUser();
-
-  const values = [
-    storedUser.uid,
-    storedUser.id,
-    storedUser.userId,
-    storedUser.referrerId,
-    storedUser.referrerUid,
-    storedUser.phone,
-    storedUser.phoneNumber,
-    storedUser.mobile,
-    storedUser.mobileNumber,
-    storedUser.email,
-  ];
-
-  const identities = [];
-
-  values.forEach((value) => {
-    if (
-      value !== undefined &&
-      value !== null &&
-      String(value).trim() !== ""
-    ) {
-      identities.push(
-        normalizeValue(value)
-      );
-
-      const phone =
-        normalizePhone(value);
-
-      if (phone) {
-        identities.push(
-          normalizeValue(phone)
-        );
-      }
-    }
-  });
-
-  return [...new Set(identities)];
-}
-
-/* =====================================================
-   GET REFERRAL OWNER IDENTITIES
-===================================================== */
-
-function getReferralOwnerIdentities(
-  referral
-) {
-  const values = [
-    referral.referrerId,
-    referral.referrerUid,
-    referral.referrerUserId,
-
-    referral.referredBy,
-    referral.referredById,
-    referral.referredByUid,
-
-    referral.createdBy,
-    referral.createdById,
-    referral.createdByUid,
-
-    referral.ownerId,
-    referral.ownerUid,
-
-    referral.userId,
-    referral.uid,
-
-    referral.referrerPhone,
-    referral.referrerPhoneNumber,
-    referral.referrerMobile,
-
-    referral.userPhone,
-    referral.userPhoneNumber,
-    referral.userMobile,
-
-    referral.email,
-    referral.referrerEmail,
-  ];
-
-  const identities = [];
-
-  values.forEach((value) => {
-    if (
-      value !== undefined &&
-      value !== null &&
-      String(value).trim() !== ""
-    ) {
-      identities.push(
-        normalizeValue(value)
-      );
-
-      const phone =
-        normalizePhone(value);
-
-      if (phone) {
-        identities.push(
-          normalizeValue(phone)
-        );
-      }
-    }
-  });
-
-  return [...new Set(identities)];
-}
-
-/* =====================================================
-   CHECK ONE USER ONLY
-===================================================== */
-
-function belongsToCurrentUser(
-  referral,
-  currentUserIdentities
-) {
-  if (
-    !referral ||
-    currentUserIdentities.length === 0
-  ) {
-    return false;
-  }
-
-  const ownerIdentities =
-    getReferralOwnerIdentities(referral);
-
-  return ownerIdentities.some((ownerId) =>
-    currentUserIdentities.includes(ownerId)
-  );
-}
-
-/* =====================================================
-   NORMALIZE STATUS
+   NORMALIZE TEXT
 ===================================================== */
 
 function normalizeStatus(value) {
-  return String(value ?? "")
+  return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/[\s-]+/g, "_");
-}
-
-/* =====================================================
-   GET REWARD AMOUNT
-
-   IMPORTANT:
-   reward = 3 is supported.
-===================================================== */
-
-function getReferralReward(referral) {
-  const possibleValues = [
-    referral.reward,
-    referral.rewardAmount,
-    referral.rewardEarned,
-    referral.referralReward,
-    referral.paymentAmount,
-    referral.earnings,
-    referral.amount,
-  ];
-
-  for (const value of possibleValues) {
-    if (
-      value !== undefined &&
-      value !== null &&
-      value !== ""
-    ) {
-      const numericValue = Number(
-        String(value)
-          .replace(/₹/g, "")
-          .replace(/,/g, "")
-          .trim()
-      );
-
-      if (
-        Number.isFinite(numericValue) &&
-        numericValue > 0
-      ) {
-        return numericValue;
-      }
-    }
-  }
-
-  return 0;
-}
-
-/* =====================================================
-   CHECK REJECTED REFERRAL
-===================================================== */
-
-function isRejectedReferral(referral) {
-  const statuses = [
-    referral.status,
-    referral.referralStatus,
-    referral.paymentStatus,
-    referral.rewardStatus,
-    referral.adminStatus,
-  ].map(normalizeStatus);
-
-  const rejectedStatuses = [
-    "rejected",
-    "declined",
-    "failed",
-    "cancelled",
-    "canceled",
-    "duplicate",
-    "already_exists",
-    "provider_exists",
-    "not_eligible",
-  ];
-
-  return statuses.some((status) =>
-    rejectedStatuses.includes(status)
-  );
-}
-
-/* =====================================================
-   CHECK SUCCESSFUL / PAID REFERRAL
-===================================================== */
-
-function isEarnedReferral(referral) {
-  if (!referral) {
-    return false;
-  }
-
-  if (isRejectedReferral(referral)) {
-    return false;
-  }
-
-  const reward =
-    getReferralReward(referral);
-
-  if (reward <= 0) {
-    return false;
-  }
-
-  const status = normalizeStatus(
-    referral.status
-  );
-
-  const referralStatus =
-    normalizeStatus(
-      referral.referralStatus
-    );
-
-  const paymentStatus =
-    normalizeStatus(
-      referral.paymentStatus
-    );
-
-  const rewardStatus =
-    normalizeStatus(
-      referral.rewardStatus
-    );
-
-  const adminStatus =
-    normalizeStatus(
-      referral.adminStatus
-    );
-
-  const paymentCompleted =
-    paymentStatus === "paid" ||
-    paymentStatus === "completed" ||
-    paymentStatus === "complete" ||
-    paymentStatus === "successful" ||
-    paymentStatus === "success";
-
-  const rewardPaid =
-    rewardStatus === "paid" ||
-    rewardStatus === "earned" ||
-    rewardStatus === "completed" ||
-    rewardStatus === "successful";
-
-  const referralPaid =
-    status === "paid" ||
-    status === "successful" ||
-    status === "success" ||
-    status === "completed" ||
-    status === "payment_completed" ||
-    referralStatus === "paid" ||
-    referralStatus === "successful" ||
-    referralStatus === "completed";
-
-  const adminApproved =
-    adminStatus === "approved" ||
-    adminStatus === "accepted" ||
-    adminStatus === "successful" ||
-    adminStatus === "paid";
-
-  return Boolean(
-    paymentCompleted ||
-      rewardPaid ||
-      referralPaid ||
-      adminApproved
-  );
+    .replace(/[_-]/g, " ")
+    .replace(/\s+/g, " ");
 }
 
 /* =====================================================
@@ -412,6 +39,7 @@ function getDateValue(value) {
 
   try {
     if (
+      typeof value === "object" &&
       typeof value.toDate === "function"
     ) {
       return value.toDate();
@@ -421,9 +49,7 @@ function getDateValue(value) {
       typeof value === "object" &&
       typeof value.seconds === "number"
     ) {
-      return new Date(
-        value.seconds * 1000
-      );
+      return new Date(value.seconds * 1000);
     }
 
     if (value instanceof Date) {
@@ -444,43 +70,9 @@ function getDateValue(value) {
 
     return null;
   } catch (error) {
-    console.error(
-      "Date conversion error:",
-      error
-    );
-
+    console.error("Date conversion error:", error);
     return null;
   }
-}
-
-/* =====================================================
-   GET REFERRAL DATE
-===================================================== */
-
-function getReferralDate(referral) {
-  return (
-    referral.paidAt ||
-    referral.rewardPaidAt ||
-    referral.paymentCompletedAt ||
-    referral.updatedAt ||
-    referral.createdAt ||
-    referral.submittedAt ||
-    null
-  );
-}
-
-/* =====================================================
-   SORT DATE
-===================================================== */
-
-function getCreatedTime(referral) {
-  const date = getDateValue(
-    getReferralDate(referral)
-  );
-
-  return date
-    ? date.getTime()
-    : 0;
 }
 
 /* =====================================================
@@ -488,8 +80,7 @@ function getCreatedTime(referral) {
 ===================================================== */
 
 function formatDate(value) {
-  const date =
-    getDateValue(value);
+  const date = getDateValue(value);
 
   if (!date) {
     return "—";
@@ -505,21 +96,131 @@ function formatDate(value) {
 }
 
 /* =====================================================
+   GET REWARD AMOUNT
+
+   Positive reward values are preferred.
+   This prevents reward: 0 from hiding
+   rewardAmount/paymentAmount: 3.
+===================================================== */
+
+function getReferralReward(referral) {
+  if (!referral) {
+    return 0;
+  }
+
+  const possibleValues = [
+    referral.rewardAmount,
+    referral.rewardEarned,
+    referral.referralReward,
+    referral.earnings,
+    referral.amount,
+    referral.reward,
+    referral.paymentAmount,
+  ];
+
+  const numericValues = possibleValues
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  if (numericValues.length === 0) {
+    return 0;
+  }
+
+  return numericValues[0];
+}
+
+/* =====================================================
+   CHECK EARNED / PAID REFERRAL
+===================================================== */
+
+function isEarnedReferral(referral) {
+  if (!referral) {
+    return false;
+  }
+
+  const reward = getReferralReward(referral);
+
+  if (reward <= 0) {
+    return false;
+  }
+
+  const status = normalizeStatus(referral.status);
+
+  const paymentStatus = normalizeStatus(
+    referral.paymentStatus
+  );
+
+  const rewardStatus = normalizeStatus(
+    referral.rewardStatus
+  );
+
+  const verificationStatus = normalizeStatus(
+    referral.verificationStatus
+  );
+
+  const adminStatus = normalizeStatus(
+    referral.adminStatus
+  );
+
+  const rejected =
+    status === "rejected" ||
+    status === "declined" ||
+    status === "cancelled" ||
+    status === "canceled" ||
+    paymentStatus === "rejected" ||
+    paymentStatus === "failed";
+
+  if (rejected) {
+    return false;
+  }
+
+  const paidByStatus =
+    status === "paid" ||
+    status === "successful" ||
+    status === "success" ||
+    status === "completed" ||
+    status === "payment completed";
+
+  const paidByPaymentStatus =
+    paymentStatus === "paid" ||
+    paymentStatus === "completed" ||
+    paymentStatus === "complete" ||
+    paymentStatus === "success" ||
+    paymentStatus === "successful";
+
+  const paidByRewardStatus =
+    rewardStatus === "paid" ||
+    rewardStatus === "earned" ||
+    rewardStatus === "completed";
+
+  const approvedByAdmin =
+    adminStatus === "approved" ||
+    adminStatus === "accepted" ||
+    adminStatus === "successful" ||
+    adminStatus === "paid";
+
+  const verified =
+    verificationStatus === "verified" ||
+    verificationStatus === "completed";
+
+  return (
+    paidByStatus ||
+    paidByPaymentStatus ||
+    paidByRewardStatus ||
+    approvedByAdmin ||
+    verified
+  );
+}
+
+/* =====================================================
    GET PROVIDER NAME
 ===================================================== */
 
 function getProviderName(referral) {
   return (
     referral.providerName ||
-    referral.referredProviderName ||
-    referral.providerFullName ||
     referral.provider?.name ||
     referral.provider?.fullName ||
-    referral.referredProvider?.name ||
-    referral.referredProvider?.fullName ||
-    referral.providerDetails?.name ||
-    referral.providerDetails?.fullName ||
-    referral.serviceProviderName ||
     referral.name ||
     referral.fullName ||
     "Provider"
@@ -533,12 +234,6 @@ function getProviderName(referral) {
 function getProviderPhone(referral) {
   return (
     referral.providerPhone ||
-    referral.providerPhoneNumber ||
-    referral.referredProviderPhone ||
-    referral.referredProviderMobile ||
-    referral.provider?.phone ||
-    referral.provider?.phoneNumber ||
-    referral.provider?.mobile ||
     referral.phone ||
     referral.phoneNumber ||
     referral.mobile ||
@@ -553,19 +248,61 @@ function getProviderPhone(referral) {
 
 function getUnionId(referral) {
   return (
-    referral.providerUnionId ||
-    referral.providerUnionID ||
-    referral.referredProviderUnionId ||
-    referral.referredProviderUnionID ||
     referral.unionId ||
     referral.unionID ||
     referral.labourId ||
     referral.labourID ||
     referral.unionLabourId ||
     referral.unionLabourID ||
-    referral.provider?.unionId ||
-    referral.provider?.unionID ||
     "Not provided"
+  );
+}
+
+/* =====================================================
+   GET REFERRAL DATE
+===================================================== */
+
+function getCreatedTime(referral) {
+  const date =
+    getDateValue(referral.paidAt) ||
+    getDateValue(referral.rewardPaidAt) ||
+    getDateValue(referral.updatedAt) ||
+    getDateValue(referral.createdAt) ||
+    getDateValue(referral.submittedAt);
+
+  return date ? date.getTime() : 0;
+}
+
+/* =====================================================
+   CHECK WHETHER REFERRAL BELONGS TO USER
+===================================================== */
+
+function referralBelongsToUser(referral, user) {
+  if (!referral || !user) {
+    return false;
+  }
+
+  const currentUserIds = [
+    user.uid,
+    user.id,
+    user.userId,
+  ]
+    .filter(Boolean)
+    .map(String);
+
+  const referralUserIds = [
+    referral.referrerId,
+    referral.referrerUid,
+    referral.referrerUserId,
+    referral.referredBy,
+    referral.userId,
+    referral.uid,
+  ]
+    .filter(Boolean)
+    .map(String);
+
+  return referralUserIds.some((referralUserId) =>
+    currentUserIds.includes(referralUserId)
   );
 }
 
@@ -574,127 +311,101 @@ function getUnionId(referral) {
 ===================================================== */
 
 export default function Earnings() {
-  const [
-    referrals,
-    setReferrals,
-  ] = useState([]);
-
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
-
-  const [
-    errorMessage,
-    setErrorMessage,
-  ] = useState("");
+  const [referrals, setReferrals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    const currentUserIdentities =
-      getCurrentUserIdentities();
+    const auth = getAuth();
 
-    if (
-      currentUserIdentities.length === 0
-    ) {
-      setReferrals([]);
-      setLoading(false);
-      setErrorMessage("");
-      return;
-    }
+    let unsubscribeReferrals = null;
 
-    setLoading(true);
-    setErrorMessage("");
+    const unsubscribeAuth = onAuthStateChanged(
+      auth,
+      (user) => {
+        if (unsubscribeReferrals) {
+          unsubscribeReferrals();
+          unsubscribeReferrals = null;
+        }
 
-    /*
-     * Read the referrals collection.
-     *
-     * Data is filtered below for the current
-     * Velzo user only.
-     */
-    const referralsQuery = query(
-      collection(db, "referrals")
-    );
+        if (!user) {
+          setReferrals([]);
+          setLoading(false);
+          setErrorMessage("");
+          return;
+        }
 
-    const unsubscribe =
-      onSnapshot(
-        referralsQuery,
-        (snapshot) => {
-          try {
-            const allReferrals =
-              snapshot.docs.map(
-                (documentSnapshot) => ({
+        setLoading(true);
+        setErrorMessage("");
+
+        /*
+         * Load only referrals created by
+         * the currently logged-in website user.
+         */
+        const earningsQuery = query(
+          collection(db, "referrals"),
+          where("referrerId", "==", user.uid)
+        );
+
+        unsubscribeReferrals = onSnapshot(
+          earningsQuery,
+          (snapshot) => {
+            try {
+              const userReferrals = snapshot.docs
+                .map((documentSnapshot) => ({
                   id: documentSnapshot.id,
                   ...documentSnapshot.data(),
-                })
-              );
-
-            /*
-             * STEP 1:
-             * Keep only the current user's referrals.
-             */
-            const currentUserReferrals =
-              allReferrals.filter(
-                (referral) =>
-                  belongsToCurrentUser(
-                    referral,
-                    currentUserIdentities
-                  )
-              );
-
-            /*
-             * STEP 2:
-             * Keep only paid/earned referrals.
-             */
-            const earnedReferrals =
-              currentUserReferrals
+                }))
+                .filter((referral) =>
+                  referralBelongsToUser(referral, user)
+                )
                 .filter((referral) =>
                   isEarnedReferral(referral)
                 )
                 .sort(
                   (firstReferral, secondReferral) =>
-                    getCreatedTime(
-                      secondReferral
-                    ) -
-                    getCreatedTime(
-                      firstReferral
-                    )
+                    getCreatedTime(secondReferral) -
+                    getCreatedTime(firstReferral)
                 );
 
-            setReferrals(
-              earnedReferrals
-            );
+              setReferrals(userReferrals);
+              setLoading(false);
+              setErrorMessage("");
+            } catch (error) {
+              console.error(
+                "Error processing earnings:",
+                error
+              );
 
-            setLoading(false);
-            setErrorMessage("");
-          } catch (error) {
+              setReferrals([]);
+              setLoading(false);
+              setErrorMessage(
+                "Unable to process earnings data."
+              );
+            }
+          },
+          (error) => {
             console.error(
-              "Error processing earnings:",
+              "Error loading earnings:",
               error
             );
 
             setReferrals([]);
             setLoading(false);
             setErrorMessage(
-              "Unable to process earnings data."
+              "Unable to load earnings data. Please try again."
             );
           }
-        },
-        (error) => {
-          console.error(
-            "Error loading earnings:",
-            error
-          );
-
-          setReferrals([]);
-          setLoading(false);
-          setErrorMessage(
-            "Unable to load earnings data. Please try again."
-          );
-        }
-      );
+        );
+      }
+    );
 
     return () => {
-      unsubscribe();
+      unsubscribeAuth();
+
+      if (unsubscribeReferrals) {
+        unsubscribeReferrals();
+      }
     };
   }, []);
 
@@ -705,8 +416,7 @@ export default function Earnings() {
   const totalEarned = useMemo(() => {
     return referrals.reduce(
       (total, referral) =>
-        total +
-        getReferralReward(referral),
+        total + getReferralReward(referral),
       0
     );
   }, [referrals]);
@@ -735,27 +445,20 @@ export default function Earnings() {
 
   return (
     <div className="earnings-page">
-      {/* =================================================
-          PAGE HEADING
-      ================================================= */}
+      {/* PAGE HEADING */}
 
       <div className="page-heading">
-        <p className="eyebrow">
-          VELZO
-        </p>
+        <p className="eyebrow">VELZO</p>
 
-        <h1>
-          Earnings
-        </h1>
+        <h1>Earnings</h1>
 
         <p>
-          Your rewards from successful provider referrals.
+          Your rewards from successful provider
+          referrals.
         </p>
       </div>
 
-      {/* =================================================
-          ERROR MESSAGE
-      ================================================= */}
+      {/* ERROR MESSAGE */}
 
       {errorMessage && (
         <div className="empty-state error-state">
@@ -763,14 +466,10 @@ export default function Earnings() {
         </div>
       )}
 
-      {/* =================================================
-          TOTAL EARNED
-      ================================================= */}
+      {/* TOTAL EARNED */}
 
       <div className="earnings-hero">
-        <span>
-          TOTAL EARNED
-        </span>
+        <span>TOTAL EARNED</span>
 
         <strong>
           ₹{totalEarned.toLocaleString("en-IN")}
@@ -778,25 +477,17 @@ export default function Earnings() {
 
         <small>
           From {referrals.length} successful referral
-          {referrals.length !== 1
-            ? "s"
-            : ""}
+          {referrals.length !== 1 ? "s" : ""}
         </small>
       </div>
 
-      {/* =================================================
-          SUMMARY CARDS
-      ================================================= */}
+      {/* EARNINGS SUMMARY */}
 
       <div className="earnings-grid">
         <div className="earning-card">
-          <span>
-            ₹4 REFERRALS
-          </span>
+          <span>₹4 REFERRALS</span>
 
-          <strong>
-            {fourRupee}
-          </strong>
+          <strong>{fourRupee}</strong>
 
           <small>
             With Union / Labour ID
@@ -804,13 +495,9 @@ export default function Earnings() {
         </div>
 
         <div className="earning-card">
-          <span>
-            ₹3 REFERRALS
-          </span>
+          <span>₹3 REFERRALS</span>
 
-          <strong>
-            {threeRupee}
-          </strong>
+          <strong>{threeRupee}</strong>
 
           <small>
             Without Union / Labour ID
@@ -818,13 +505,9 @@ export default function Earnings() {
         </div>
 
         <div className="earning-card">
-          <span>
-            SUCCESSFUL
-          </span>
+          <span>SUCCESSFUL</span>
 
-          <strong>
-            {referrals.length}
-          </strong>
+          <strong>{referrals.length}</strong>
 
           <small>
             Paid referrals
@@ -832,23 +515,15 @@ export default function Earnings() {
         </div>
       </div>
 
-      {/* =================================================
-          REWARD HISTORY
-      ================================================= */}
+      {/* REWARD HISTORY */}
 
       <div className="earnings-list">
-        <h2>
-          Reward History
-        </h2>
+        <h2>Reward History</h2>
 
         {loading ? (
-          <p>
-            Loading earnings...
-          </p>
+          <p>Loading...</p>
         ) : referrals.length === 0 ? (
-          <p>
-            No earned rewards yet.
-          </p>
+          <p>No earned rewards yet.</p>
         ) : (
           referrals.map((referral) => {
             const reward =
@@ -861,9 +536,7 @@ export default function Earnings() {
               >
                 <div>
                   <strong>
-                    {getProviderName(
-                      referral
-                    )}
+                    {getProviderName(referral)}
                   </strong>
 
                   <span>
@@ -871,25 +544,11 @@ export default function Earnings() {
                   </span>
 
                   <small>
-                    Phone:{" "}
-                    {getProviderPhone(
-                      referral
-                    )}
-                  </small>
-
-                  <small>
-                    Union / Labour ID:{" "}
-                    {getUnionId(
-                      referral
-                    )}
-                  </small>
-
-                  <small>
-                    Date:{" "}
                     {formatDate(
-                      getReferralDate(
-                        referral
-                      )
+                      referral.paidAt ||
+                        referral.rewardPaidAt ||
+                        referral.updatedAt ||
+                        referral.createdAt
                     )}
                   </small>
                 </div>
