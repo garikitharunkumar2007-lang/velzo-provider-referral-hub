@@ -603,37 +603,11 @@ function Dashboard() {
           ) === "rejected"
       ).length;
 
-    const totalEarned =
-      referrals.reduce(
-        (total, referral) => {
-          const status =
-            normalizeStatus(
-              referral.status
-            );
-
-          const paymentStatus =
-            normalizeStatus(
-              referral.paymentStatus
-            );
-
-          const isSuccessful =
-            hasSuccessfulPayment(referral);
-
-          if (isSuccessful) {
-            return total + getRewardAmount(referral);
-          }
-
-          return total;
-        },
-        0
-      );
-
     return {
       totalReferrals,
       pendingReferrals,
       successfulReferrals,
       rejectedReferrals,
-      totalEarned,
     };
   }, [referrals]);
 
@@ -729,37 +703,7 @@ function Dashboard() {
             </span>
           </button>
 
-          <button
-            type="button"
-            className="nav-item"
-            onClick={() =>
-              goTo("/referral-history")
-            }
-          >
-            <span className="nav-icon">
-              ▣
-            </span>
 
-            <span>
-              Referral History
-            </span>
-          </button>
-
-          <button
-            type="button"
-            className="nav-item"
-            onClick={() =>
-              goTo("/earnings")
-            }
-          >
-            <span className="nav-icon">
-              ₹
-            </span>
-
-            <span>
-              Earnings
-            </span>
-          </button>
 
           <button
             type="button"
@@ -866,8 +810,7 @@ function Dashboard() {
             </h1>
 
             <p>
-              Track your referrals,
-              complaints and earnings.
+              Track your referrals and complaints.
             </p>
           </div>
 
@@ -1021,22 +964,6 @@ function Dashboard() {
                 </div>
               </div>
 
-              <div className="stat-card">
-                <span className="stat-icon">
-                  ₹
-                </span>
-
-                <div>
-                  <p>
-                    Total Earned
-                  </p>
-
-                  <h3>
-                    ₹
-                    {statistics.totalEarned}
-                  </h3>
-                </div>
-              </div>
             </div>
           </section>
 
@@ -1065,15 +992,6 @@ function Dashboard() {
                 </h2>
               </div>
 
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() =>
-                  goTo("/referral-history")
-                }
-              >
-                View All →
-              </button>
             </div>
 
             {loading ? (
@@ -1228,91 +1146,9 @@ function Dashboard() {
               </span>
             </button>
 
-            <button
-              type="button"
-              className="quick-action-card"
-              onClick={() =>
-                goTo("/earnings")
-              }
-            >
-              <span className="quick-action-icon">
-                ₹
-              </span>
-
-              <div>
-                <h3>
-                  View Earnings
-                </h3>
-
-                <p>
-                  Track your referral rewards
-                </p>
-              </div>
-
-              <span className="arrow">
-                →
-              </span>
-            </button>
           </section>
 
-          {/* REWARD PROGRAM */}
 
-          <section className="program-card">
-            <div className="program-header">
-              <div>
-                <span className="eyebrow">
-                  REWARD PROGRAM
-                </span>
-
-                <h2>
-                  Earn for every successful
-                  provider
-                </h2>
-              </div>
-
-              <div className="program-badge">
-                VELZO
-              </div>
-            </div>
-
-            <div className="reward-grid">
-              <div className="reward-item">
-                <div className="reward-amount">
-                  ₹4
-                </div>
-
-                <div>
-                  <strong>
-                    With Union / Labour ID
-                  </strong>
-
-                  <p>
-                    Earn after successful
-                    verification and
-                    onboarding.
-                  </p>
-                </div>
-              </div>
-
-              <div className="reward-item">
-                <div className="reward-amount">
-                  ₹3
-                </div>
-
-                <div>
-                  <strong>
-                    Without Union / Labour ID
-                  </strong>
-
-                  <p>
-                    Earn after successful
-                    verification and
-                    onboarding.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
       </main>
     </div>
