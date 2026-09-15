@@ -6,16 +6,50 @@ import {
   query,
 } from "firebase/firestore";
 
-import { getAuth, onAuthStateChanged } from "firebase/auth";
-
 import { db } from "../firebase/firebaseConfig";
 
 import "./Earnings.css";
 
 /* -------------------------------------------------
-   Normalize text/status values
+   USER-SPECIFIC SETTINGS
 ------------------------------------------------- */
-function normalizeStatus(value) {
+
+/*
+ * The website must store the current user's ID in
+ * localStorage using one of these keys:
+ *
+ * velzoUserId
+ * userId
+ * providerId
+ * referrerId
+ *
+ * Example:
+ *
+ * localStorage.setItem("velzoUserId", "YOUR_USER_ID");
+ */
+function getCurrentUserId() {
+  const possibleKeys = [
+    "velzoUserId",
+    "userId",
+    "providerId",
+    "referrerId",
+  ];
+
+  for (const key of possibleKeys) {
+    const value = localStorage.getItem(key);
+
+    if (value && value.trim() !== "") {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
+/* -------------------------------------------------
+   Normalize values
+------------------------------------------------- */
+function normalizeValue(value) {
   return String(value || "")
     .trim()
     .toLowerCase()
@@ -23,7 +57,7 @@ function normalizeStatus(value) {
 }
 
 /* -------------------------------------------------
-   Convert Firebase Timestamp / Date / String
+   Convert Firebase date values
 ------------------------------------------------- */
 function getDateValue(value) {
   if (!value) {
@@ -85,40 +119,32 @@ function formatDate(value) {
    Get reward amount
 ------------------------------------------------- */
 function getReferralReward(referral) {
-  if (!referral) {
-    return 0;
-  }
-
   const possibleValues = [
-    referral.paymentAmount,
     referral.rewardAmount,
     referral.rewardEarned,
     referral.referralReward,
+    referral.paymentAmount,
     referral.earnings,
     referral.amount,
     referral.reward,
   ];
 
-  const validValue = possibleValues.find(
-    (value) =>
-      value !== undefined &&
-      value !== null &&
-      value !== ""
+  const value = possibleValues.find(
+    (item) =>
+      item !== undefined &&
+      item !== null &&
+      item !== ""
   );
 
-  const numericValue = Number(validValue);
+  const reward = Number(value);
 
-  if (!Number.isFinite(numericValue)) {
-    return 0;
-  }
-
-  return numericValue;
+  return Number.isFinite(reward) ? reward : 0;
 }
 
 /* -------------------------------------------------
-   Get current-user ownership value
+   Get all possible owner IDs
 ------------------------------------------------- */
-function getReferralOwnerValues(referral) {
+function getOwnerIds(referral) {
   return [
     referral.referrerUid,
     referral.referrerId,
@@ -141,56 +167,20 @@ function getReferralOwnerValues(referral) {
 }
 
 /* -------------------------------------------------
-   Check whether referral belongs to current user
+   Check whether referral belongs to one user
 ------------------------------------------------- */
-function belongsToCurrentUser(referral, currentUser) {
-  if (!referral || !currentUser) {
+function belongsToOneUser(referral, userId) {
+  if (!userId) {
     return false;
   }
 
-  const currentUid = String(currentUser.uid || "")
-    .trim();
+  const ownerIds = getOwnerIds(referral);
 
-  const currentEmail = String(
-    currentUser.email || ""
-  )
-    .trim()
-    .toLowerCase();
-
-  const ownerValues = getReferralOwnerValues(
-    referral
-  );
-
-  const ownerEmails = [
-    referral.referrerEmail,
-    referral.referredByEmail,
-    referral.createdByEmail,
-    referral.userEmail,
-    referral.email,
-  ]
-    .filter(
-      (value) =>
-        value !== undefined &&
-        value !== null &&
-        value !== ""
-    )
-    .map((value) =>
-      String(value).trim().toLowerCase()
-    );
-
-  const uidMatches =
-    currentUid &&
-    ownerValues.includes(currentUid);
-
-  const emailMatches =
-    currentEmail &&
-    ownerEmails.includes(currentEmail);
-
-  return Boolean(uidMatches || emailMatches);
+  return ownerIds.includes(String(userId).trim());
 }
 
 /* -------------------------------------------------
-   Check rejected/failed/cancelled referral
+   Check rejected referral
 ------------------------------------------------- */
 function isRejectedReferral(referral) {
   const statuses = [
@@ -199,7 +189,7 @@ function isRejectedReferral(referral) {
     referral.paymentStatus,
     referral.rewardStatus,
     referral.adminStatus,
-  ].map(normalizeStatus);
+  ].map(normalizeValue);
 
   const rejectedStatuses = [
     "rejected",
@@ -219,7 +209,7 @@ function isRejectedReferral(referral) {
 }
 
 /* -------------------------------------------------
-   Check whether referral is successfully earned
+   Check successful earned referral
 ------------------------------------------------- */
 function isEarnedReferral(referral) {
   if (!referral) {
@@ -227,29 +217,12 @@ function isEarnedReferral(referral) {
   }
 
   /*
-   * Rejected referrals must always be excluded,
-   * even if another field incorrectly says successful
-   * or contains a reward amount.
+   * Rejected referrals are always excluded,
+   * even if they contain ₹3 or ₹4.
    */
   if (isRejectedReferral(referral)) {
     return false;
   }
-
-  const paymentStatus = normalizeStatus(
-    referral.paymentStatus
-  );
-
-  const rewardStatus = normalizeStatus(
-    referral.rewardStatus
-  );
-
-  const referralStatus = normalizeStatus(
-    referral.status
-  );
-
-  const adminStatus = normalizeStatus(
-    referral.adminStatus
-  );
 
   const reward = getReferralReward(referral);
 
@@ -257,39 +230,55 @@ function isEarnedReferral(referral) {
     return false;
   }
 
-  const paymentCompleted =
+  const paymentStatus = normalizeValue(
+    referral.paymentStatus
+  );
+
+  const rewardStatus = normalizeValue(
+    referral.rewardStatus
+  );
+
+  const referralStatus = normalizeValue(
+    referral.status
+  );
+
+  const adminStatus = normalizeValue(
+    referral.adminStatus
+  );
+
+  const isPaymentCompleted =
     paymentStatus === "completed" ||
     paymentStatus === "complete" ||
     paymentStatus === "paid";
 
-  const rewardPaid =
+  const isRewardPaid =
     rewardStatus === "earned" ||
     rewardStatus === "paid" ||
     rewardStatus === "completed";
 
-  const referralSuccessful =
+  const isReferralSuccessful =
     referralStatus === "successful" ||
     referralStatus === "success" ||
     referralStatus === "approved" ||
     referralStatus === "paid" ||
     referralStatus === "completed";
 
-  const adminApproved =
+  const isAdminApproved =
     adminStatus === "approved" ||
     adminStatus === "accepted" ||
     adminStatus === "successful" ||
     adminStatus === "paid";
 
   return Boolean(
-    paymentCompleted ||
-      rewardPaid ||
-      referralSuccessful ||
-      adminApproved
+    isPaymentCompleted ||
+      isRewardPaid ||
+      isReferralSuccessful ||
+      isAdminApproved
   );
 }
 
 /* -------------------------------------------------
-   Get provider name
+   Provider name
 ------------------------------------------------- */
 function getProviderName(referral) {
   return (
@@ -302,7 +291,7 @@ function getProviderName(referral) {
 }
 
 /* -------------------------------------------------
-   Get provider phone
+   Provider phone
 ------------------------------------------------- */
 function getProviderPhone(referral) {
   return (
@@ -316,7 +305,7 @@ function getProviderPhone(referral) {
 }
 
 /* -------------------------------------------------
-   Get Union / Labour ID
+   Union / Labour ID
 ------------------------------------------------- */
 function getUnionId(referral) {
   return (
@@ -331,7 +320,7 @@ function getUnionId(referral) {
 }
 
 /* -------------------------------------------------
-   Get referral created / paid time
+   Date sorting
 ------------------------------------------------- */
 function getCreatedTime(referral) {
   const date =
@@ -351,36 +340,17 @@ export default function Earnings() {
   const [referrals, setReferrals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const [currentUser, setCurrentUser] = useState(null);
 
   /* -------------------------------------------------
-     Get currently logged-in website user
+     Load only one user's earnings
   ------------------------------------------------- */
   useEffect(() => {
-    const auth = getAuth();
+    const currentUserId = getCurrentUserId();
 
-    const unsubscribeAuth = onAuthStateChanged(
-      auth,
-      (user) => {
-        setCurrentUser(user);
-      }
-    );
-
-    return () => {
-      unsubscribeAuth();
-    };
-  }, []);
-
-  /* -------------------------------------------------
-     Load only current user's earnings
-  ------------------------------------------------- */
-  useEffect(() => {
-    if (!currentUser) {
+    if (!currentUserId) {
       setReferrals([]);
       setLoading(false);
-      setErrorMessage(
-        "Please login to view your earnings."
-      );
+      setErrorMessage("");
       return;
     }
 
@@ -391,7 +361,7 @@ export default function Earnings() {
       collection(db, "referrals")
     );
 
-    const unsubscribeReferrals = onSnapshot(
+    const unsubscribe = onSnapshot(
       earningsQuery,
       (snapshot) => {
         try {
@@ -403,25 +373,23 @@ export default function Earnings() {
           );
 
           /*
-           * IMPORTANT:
-           * First filter by the logged-in user.
-           * Other users' referrals are never included.
+           * First filter by ONE user only.
+           * Other users' referrals are ignored.
            */
-          const currentUserReferrals =
+          const oneUserReferrals =
             allReferrals.filter((referral) =>
-              belongsToCurrentUser(
+              belongsToOneUser(
                 referral,
-                currentUser
+                currentUserId
               )
             );
 
           /*
-           * Then include only valid earned referrals.
-           * Rejected referrals are excluded even if
-           * they contain rewardAmount/paymentAmount.
+           * Then remove rejected referrals and
+           * include only successful earned referrals.
            */
           const earnedReferrals =
-            currentUserReferrals
+            oneUserReferrals
               .filter((referral) =>
                 isEarnedReferral(referral)
               )
@@ -432,22 +400,17 @@ export default function Earnings() {
               );
 
           console.log(
-            "Current logged-in user:",
-            currentUser.uid
-          );
-
-          console.log(
-            "All referrals:",
-            allReferrals
+            "Current earnings user ID:",
+            currentUserId
           );
 
           console.log(
             "Current user's referrals:",
-            currentUserReferrals
+            oneUserReferrals
           );
 
           console.log(
-            "Current user's earned referrals:",
+            "Current user's valid earnings:",
             earnedReferrals
           );
 
@@ -475,7 +438,6 @@ export default function Earnings() {
 
         setReferrals([]);
         setLoading(false);
-
         setErrorMessage(
           "Unable to load earnings data. Please try again later."
         );
@@ -483,12 +445,12 @@ export default function Earnings() {
     );
 
     return () => {
-      unsubscribeReferrals();
+      unsubscribe();
     };
-  }, [currentUser]);
+  }, []);
 
   /* -------------------------------------------------
-     Total earned amount
+     Total earned
   ------------------------------------------------- */
   const totalEarned = useMemo(() => {
     return referrals.reduce(
@@ -499,7 +461,7 @@ export default function Earnings() {
   }, [referrals]);
 
   /* -------------------------------------------------
-     Count ₹4 referrals
+     ₹4 referrals
   ------------------------------------------------- */
   const fourRupee = useMemo(() => {
     return referrals.filter(
@@ -509,7 +471,7 @@ export default function Earnings() {
   }, [referrals]);
 
   /* -------------------------------------------------
-     Count ₹3 referrals
+     ₹3 referrals
   ------------------------------------------------- */
   const threeRupee = useMemo(() => {
     return referrals.filter(
@@ -532,14 +494,14 @@ export default function Earnings() {
         </p>
       </div>
 
-      {/* Error message */}
+      {/* Firebase error only */}
       {errorMessage && (
         <div className="empty-state error-state">
           {errorMessage}
         </div>
       )}
 
-      {/* Earnings summary */}
+      {/* Total earnings */}
       <div className="earnings-hero">
         <span>TOTAL EARNED</span>
 
