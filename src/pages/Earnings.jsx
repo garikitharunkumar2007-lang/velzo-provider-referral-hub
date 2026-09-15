@@ -6,12 +6,14 @@ import {
   query,
 } from "firebase/firestore";
 
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+
 import { db } from "../firebase/firebaseConfig";
 
 import "./Earnings.css";
 
 /* -------------------------------------------------
-   Normalize status values
+   Normalize text/status values
 ------------------------------------------------- */
 function normalizeStatus(value) {
   return String(value || "")
@@ -114,9 +116,125 @@ function getReferralReward(referral) {
 }
 
 /* -------------------------------------------------
+   Get current-user ownership value
+------------------------------------------------- */
+function getReferralOwnerValues(referral) {
+  return [
+    referral.referrerUid,
+    referral.referrerId,
+    referral.referrerUserId,
+    referral.referredByUid,
+    referral.referredById,
+    referral.createdBy,
+    referral.createdByUid,
+    referral.userId,
+    referral.uid,
+    referral.ownerId,
+  ]
+    .filter(
+      (value) =>
+        value !== undefined &&
+        value !== null &&
+        value !== ""
+    )
+    .map((value) => String(value).trim());
+}
+
+/* -------------------------------------------------
+   Check whether referral belongs to current user
+------------------------------------------------- */
+function belongsToCurrentUser(referral, currentUser) {
+  if (!referral || !currentUser) {
+    return false;
+  }
+
+  const currentUid = String(currentUser.uid || "")
+    .trim();
+
+  const currentEmail = String(
+    currentUser.email || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const ownerValues = getReferralOwnerValues(
+    referral
+  );
+
+  const ownerEmails = [
+    referral.referrerEmail,
+    referral.referredByEmail,
+    referral.createdByEmail,
+    referral.userEmail,
+    referral.email,
+  ]
+    .filter(
+      (value) =>
+        value !== undefined &&
+        value !== null &&
+        value !== ""
+    )
+    .map((value) =>
+      String(value).trim().toLowerCase()
+    );
+
+  const uidMatches =
+    currentUid &&
+    ownerValues.includes(currentUid);
+
+  const emailMatches =
+    currentEmail &&
+    ownerEmails.includes(currentEmail);
+
+  return Boolean(uidMatches || emailMatches);
+}
+
+/* -------------------------------------------------
+   Check rejected/failed/cancelled referral
+------------------------------------------------- */
+function isRejectedReferral(referral) {
+  const statuses = [
+    referral.status,
+    referral.referralStatus,
+    referral.paymentStatus,
+    referral.rewardStatus,
+    referral.adminStatus,
+  ].map(normalizeStatus);
+
+  const rejectedStatuses = [
+    "rejected",
+    "declined",
+    "failed",
+    "cancelled",
+    "canceled",
+    "duplicate",
+    "already_exists",
+    "provider_exists",
+    "not_eligible",
+  ];
+
+  return statuses.some((status) =>
+    rejectedStatuses.includes(status)
+  );
+}
+
+/* -------------------------------------------------
    Check whether referral is successfully earned
 ------------------------------------------------- */
 function isEarnedReferral(referral) {
+  if (!referral) {
+    return false;
+  }
+
+  /*
+   * Rejected referrals must always be excluded,
+   * even if another field incorrectly says successful
+   * or contains a reward amount.
+   */
+  if (isRejectedReferral(referral)) {
+    return false;
+  }
+
   const paymentStatus = normalizeStatus(
     referral.paymentStatus
   );
@@ -135,6 +253,10 @@ function isEarnedReferral(referral) {
 
   const reward = getReferralReward(referral);
 
+  if (reward <= 0) {
+    return false;
+  }
+
   const paymentCompleted =
     paymentStatus === "completed" ||
     paymentStatus === "complete" ||
@@ -145,10 +267,11 @@ function isEarnedReferral(referral) {
     rewardStatus === "paid" ||
     rewardStatus === "completed";
 
-  const referralPaid =
-    referralStatus === "paid" ||
-    referralStatus === "payment_completed" ||
+  const referralSuccessful =
     referralStatus === "successful" ||
+    referralStatus === "success" ||
+    referralStatus === "approved" ||
+    referralStatus === "paid" ||
     referralStatus === "completed";
 
   const adminApproved =
@@ -157,19 +280,11 @@ function isEarnedReferral(referral) {
     adminStatus === "successful" ||
     adminStatus === "paid";
 
-  /*
-   * A referral is counted only when:
-   * 1. Reward amount is greater than zero
-   * 2. Any accepted success/payment status is present
-   */
-  return (
-    reward > 0 &&
-    (
-      paymentCompleted ||
+  return Boolean(
+    paymentCompleted ||
       rewardPaid ||
-      referralPaid ||
+      referralSuccessful ||
       adminApproved
-    )
   );
 }
 
@@ -236,19 +351,42 @@ export default function Earnings() {
   const [referrals, setReferrals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [currentUser, setCurrentUser] = useState(null);
 
   /* -------------------------------------------------
-     Load earnings without website login
+     Get currently logged-in website user
   ------------------------------------------------- */
   useEffect(() => {
+    const auth = getAuth();
+
+    const unsubscribeAuth = onAuthStateChanged(
+      auth,
+      (user) => {
+        setCurrentUser(user);
+      }
+    );
+
+    return () => {
+      unsubscribeAuth();
+    };
+  }, []);
+
+  /* -------------------------------------------------
+     Load only current user's earnings
+  ------------------------------------------------- */
+  useEffect(() => {
+    if (!currentUser) {
+      setReferrals([]);
+      setLoading(false);
+      setErrorMessage(
+        "Please login to view your earnings."
+      );
+      return;
+    }
+
     setLoading(true);
     setErrorMessage("");
 
-    /*
-     * No Firebase Auth required here.
-     *
-     * This reads the referrals collection directly.
-     */
     const earningsQuery = query(
       collection(db, "referrals")
     );
@@ -264,15 +402,54 @@ export default function Earnings() {
             })
           );
 
-          const earnedReferrals = allReferrals
-            .filter((referral) =>
-              isEarnedReferral(referral)
-            )
-            .sort(
-              (firstReferral, secondReferral) =>
-                getCreatedTime(secondReferral) -
-                getCreatedTime(firstReferral)
+          /*
+           * IMPORTANT:
+           * First filter by the logged-in user.
+           * Other users' referrals are never included.
+           */
+          const currentUserReferrals =
+            allReferrals.filter((referral) =>
+              belongsToCurrentUser(
+                referral,
+                currentUser
+              )
             );
+
+          /*
+           * Then include only valid earned referrals.
+           * Rejected referrals are excluded even if
+           * they contain rewardAmount/paymentAmount.
+           */
+          const earnedReferrals =
+            currentUserReferrals
+              .filter((referral) =>
+                isEarnedReferral(referral)
+              )
+              .sort(
+                (firstReferral, secondReferral) =>
+                  getCreatedTime(secondReferral) -
+                  getCreatedTime(firstReferral)
+              );
+
+          console.log(
+            "Current logged-in user:",
+            currentUser.uid
+          );
+
+          console.log(
+            "All referrals:",
+            allReferrals
+          );
+
+          console.log(
+            "Current user's referrals:",
+            currentUserReferrals
+          );
+
+          console.log(
+            "Current user's earned referrals:",
+            earnedReferrals
+          );
 
           setReferrals(earnedReferrals);
           setLoading(false);
@@ -308,7 +485,7 @@ export default function Earnings() {
     return () => {
       unsubscribeReferrals();
     };
-  }, []);
+  }, [currentUser]);
 
   /* -------------------------------------------------
      Total earned amount
@@ -355,7 +532,7 @@ export default function Earnings() {
         </p>
       </div>
 
-      {/* Error message only when Firebase fails */}
+      {/* Error message */}
       {errorMessage && (
         <div className="empty-state error-state">
           {errorMessage}
