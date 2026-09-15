@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { submitReferral } from "../firebase/referralService";
+// Use the correct path according to your project structure.
+import { submitReferral } from "../services/referralService";
 
 import "./ReferProvider.css";
 
+/* -------------------------------------------------
+   Initial form data
+------------------------------------------------- */
 const INITIAL_FORM_DATA = {
   fullName: "",
   phone: "",
@@ -15,6 +19,9 @@ const INITIAL_FORM_DATA = {
   consent: false,
 };
 
+/* -------------------------------------------------
+   Provider roles
+------------------------------------------------- */
 const PROVIDER_ROLES = [
   {
     value: "electrician",
@@ -54,8 +61,10 @@ const PROVIDER_ROLES = [
   },
 ];
 
-const GUEST_STORAGE_KEY =
-  "velzoGuestReferralOwner";
+/* -------------------------------------------------
+   Guest referral owner
+------------------------------------------------- */
+const GUEST_STORAGE_KEY = "velzoGuestReferralOwner";
 
 function createGuestId() {
   if (
@@ -96,6 +105,9 @@ function getGuestOwnerId() {
   }
 }
 
+/* -------------------------------------------------
+   Refer Provider Component
+------------------------------------------------- */
 export default function ReferProvider() {
   const navigate = useNavigate();
 
@@ -107,6 +119,9 @@ export default function ReferProvider() {
   const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  /* -------------------------------------------------
+     Handle normal inputs
+  ------------------------------------------------- */
   function handleChange(event) {
     const {
       name,
@@ -127,6 +142,9 @@ export default function ReferProvider() {
     setSuccess("");
   }
 
+  /* -------------------------------------------------
+     Handle phone number
+  ------------------------------------------------- */
   function handlePhoneChange(event) {
     const value = event.target.value
       .replace(/\D/g, "")
@@ -141,6 +159,9 @@ export default function ReferProvider() {
     setSuccess("");
   }
 
+  /* -------------------------------------------------
+     Validate form
+  ------------------------------------------------- */
   function validateForm() {
     const fullName =
       formData.fullName.trim();
@@ -163,7 +184,7 @@ export default function ReferProvider() {
     }
 
     if (!/^[6-9]\d{9}$/.test(phone)) {
-      return "Please enter a valid 10-digit phone number.";
+      return "Please enter a valid 10-digit Indian phone number.";
     }
 
     if (!address) {
@@ -193,6 +214,9 @@ export default function ReferProvider() {
     return "";
   }
 
+  /* -------------------------------------------------
+     Submit referral
+  ------------------------------------------------- */
   async function handleSubmit(event) {
     event.preventDefault();
 
@@ -217,7 +241,23 @@ export default function ReferProvider() {
       const guestOwnerId =
         getGuestOwnerId();
 
+      const cleanFullName =
+        formData.fullName.trim();
+
+      const cleanPhone =
+        formData.phone.trim();
+
+      const cleanAddress =
+        formData.address.trim();
+
+      const cleanUnionId =
+        formData.unionId.trim();
+
+      const cleanUpiNumber =
+        formData.upiNumber.trim();
+
       const referralPayload = {
+        /* Guest referrer details */
         referrerId: guestOwnerId,
         referrerUid: guestOwnerId,
         referrerUserId: guestOwnerId,
@@ -226,31 +266,30 @@ export default function ReferProvider() {
         referrerPhone: "",
         referrerEmail: "",
 
-        providerName:
-          formData.fullName.trim(),
+        /* Provider details */
+        providerName: cleanFullName,
+        fullName: cleanFullName,
+        phone: cleanPhone,
+        providerPhone: cleanPhone,
 
-        fullName:
-          formData.fullName.trim(),
+        address: cleanAddress,
+        role: formData.role,
 
-        phone:
-          formData.phone.trim(),
+        unionId: cleanUnionId,
+        unionLabourId: cleanUnionId,
 
-        address:
-          formData.address.trim(),
+        upiNumber: cleanUpiNumber,
+        paymentNumber: cleanUpiNumber,
 
-        role:
-          formData.role,
-
-        unionId:
-          formData.unionId.trim(),
-
-        upiNumber:
-          formData.upiNumber.trim(),
-
-        consent:
-          formData.consent,
-
+        /* Consent and status */
+        consent: Boolean(formData.consent),
         status: "pending",
+        paymentStatus: "pending",
+        rewardStatus: "pending",
+
+        /* Helpful metadata */
+        source: "website",
+        submittedAt: new Date(),
       };
 
       await submitReferral(
@@ -281,6 +320,9 @@ export default function ReferProvider() {
 
   return (
     <div className="referral-page">
+      {/* -------------------------------------------------
+         Header
+      ------------------------------------------------- */}
       <header className="referral-header">
         <button
           type="button"
@@ -288,6 +330,7 @@ export default function ReferProvider() {
           onClick={() =>
             navigate("/dashboard")
           }
+          aria-label="Back to dashboard"
         >
           ←
         </button>
@@ -305,7 +348,11 @@ export default function ReferProvider() {
         </div>
       </header>
 
+      {/* -------------------------------------------------
+         Main content
+      ------------------------------------------------- */}
       <main className="referral-container">
+        {/* Intro section */}
         <section className="referral-intro">
           <div
             className="intro-icon"
@@ -319,146 +366,256 @@ export default function ReferProvider() {
 
             <p>
               Enter the provider details carefully.
+              All information will be verified before approval.
             </p>
           </div>
         </section>
 
-        <form
-          className="referral-form"
-          onSubmit={handleSubmit}
-        >
-          <label htmlFor="fullName">
-            Provider Full Name
-          </label>
-
-          <input
-            id="fullName"
-            name="fullName"
-            type="text"
-            value={formData.fullName}
-            onChange={handleChange}
-            placeholder="Enter provider full name"
-            required
-          />
-
-          <label htmlFor="phone">
-            Provider Phone Number
-          </label>
-
-          <input
-            id="phone"
-            name="phone"
-            type="tel"
-            inputMode="numeric"
-            value={formData.phone}
-            onChange={handlePhoneChange}
-            placeholder="10-digit phone number"
-            maxLength={10}
-            required
-          />
-
-          <label htmlFor="address">
-            Address / Village
-          </label>
-
-          <textarea
-            id="address"
-            name="address"
-            value={formData.address}
-            onChange={handleChange}
-            placeholder="Enter provider address or village"
-            rows={3}
-            required
-          />
-
-          <label htmlFor="role">
-            Provider Role
-          </label>
-
-          <select
-            id="role"
-            name="role"
-            value={formData.role}
-            onChange={handleChange}
-            required
+        {/* Form card */}
+        <section className="referral-form-card">
+          <form
+            onSubmit={handleSubmit}
+            noValidate
           >
-            <option value="">
-              Select provider role
-            </option>
+            {/* Full name */}
+            <div className="referral-field">
+              <label htmlFor="fullName">
+                Provider Full Name{" "}
+                <span>*</span>
+              </label>
 
-            {PROVIDER_ROLES.map((item) => (
-              <option
-                key={item.value}
-                value={item.value}
+              <input
+                id="fullName"
+                name="fullName"
+                type="text"
+                value={formData.fullName}
+                onChange={handleChange}
+                placeholder="Enter provider full name"
+                autoComplete="name"
+                maxLength={100}
+                required
+              />
+            </div>
+
+            {/* Phone number */}
+            <div className="referral-field">
+              <label htmlFor="phone">
+                Provider Phone Number{" "}
+                <span>*</span>
+              </label>
+
+              <div className="phone-input">
+                <span aria-hidden="true">
+                  +91
+                </span>
+
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  inputMode="numeric"
+                  value={formData.phone}
+                  onChange={handlePhoneChange}
+                  placeholder="10-digit phone number"
+                  maxLength={10}
+                  autoComplete="tel"
+                  required
+                />
+              </div>
+
+              <small>
+                Enter a valid 10-digit Indian mobile number.
+              </small>
+            </div>
+
+            {/* Address */}
+            <div className="referral-field">
+              <label htmlFor="address">
+                Address / Village{" "}
+                <span>*</span>
+              </label>
+
+              <textarea
+                id="address"
+                name="address"
+                value={formData.address}
+                onChange={handleChange}
+                placeholder="Enter provider address or village"
+                rows={4}
+                maxLength={300}
+                required
+              />
+
+              <small>
+                Mention the provider's village, town or locality.
+              </small>
+            </div>
+
+            {/* Provider role */}
+            <div className="referral-field">
+              <label htmlFor="role">
+                Provider Role{" "}
+                <span>*</span>
+              </label>
+
+              <select
+                id="role"
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                required
               >
-                {item.label}
-              </option>
-            ))}
-          </select>
+                <option value="">
+                  Select provider role
+                </option>
 
-          <label htmlFor="unionId">
-            Union / Labour ID
-          </label>
-
-          <input
-            id="unionId"
-            name="unionId"
-            type="text"
-            value={formData.unionId}
-            onChange={handleChange}
-            placeholder="Optional"
-          />
-
-          <label htmlFor="upiNumber">
-            PhonePe / Google Pay / UPI
-          </label>
-
-          <input
-            id="upiNumber"
-            name="upiNumber"
-            type="text"
-            value={formData.upiNumber}
-            onChange={handleChange}
-            placeholder="Enter payment number or UPI ID"
-            required
-          />
-
-          <label className="consent-row">
-            <input
-              type="checkbox"
-              name="consent"
-              checked={formData.consent}
-              onChange={handleChange}
-            />
-
-            <span>
-              Provider has given consent to be referred
-              to VELZO.
-            </span>
-          </label>
-
-          {error && (
-            <div className="form-error">
-              {error}
+                {PROVIDER_ROLES.map((item) => (
+                  <option
+                    key={item.value}
+                    value={item.value}
+                  >
+                    {item.label}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
 
-          {success && (
-            <div className="form-success">
-              {success}
+            {/* Union ID */}
+            <div className="referral-field">
+              <label htmlFor="unionId">
+                Union / Labour ID
+              </label>
+
+              <input
+                id="unionId"
+                name="unionId"
+                type="text"
+                value={formData.unionId}
+                onChange={handleChange}
+                placeholder="Optional"
+                maxLength={80}
+              />
+
+              <small>
+                Provide this only if the provider has a Union or Labour ID.
+              </small>
             </div>
-          )}
 
-          <button
-            type="submit"
-            className="submit-button"
-            disabled={submitting}
-          >
-            {submitting
-              ? "Submitting..."
-              : "Submit Referral"}
-          </button>
-        </form>
+            {/* UPI / payment details */}
+            <div className="referral-field">
+              <label htmlFor="upiNumber">
+                PhonePe / Google Pay / UPI{" "}
+                <span>*</span>
+              </label>
+
+              <input
+                id="upiNumber"
+                name="upiNumber"
+                type="text"
+                value={formData.upiNumber}
+                onChange={handleChange}
+                placeholder="Enter payment number or UPI ID"
+                maxLength={120}
+                autoComplete="off"
+                required
+              />
+
+              <small>
+                Used for referral reward processing after verification.
+              </small>
+            </div>
+
+            {/* Consent */}
+            <div className="consent-box">
+              <input
+                id="consent"
+                type="checkbox"
+                name="consent"
+                checked={formData.consent}
+                onChange={handleChange}
+                required
+              />
+
+              <label htmlFor="consent">
+                Provider has given consent to be referred
+                to VELZO. I confirm that the details
+                entered above are correct.
+              </label>
+            </div>
+
+            {/* Error message */}
+            {error && (
+              <div
+                className="referral-error"
+                role="alert"
+              >
+                {error}
+              </div>
+            )}
+
+            {/* Success message */}
+            {success && (
+              <div
+                className="referral-success"
+                role="status"
+              >
+                {success}
+              </div>
+            )}
+
+            {/* Submit button */}
+            <button
+              type="submit"
+              className="referral-submit"
+              disabled={submitting}
+            >
+              {submitting ? (
+                <>
+                  <span aria-hidden="true">
+                    ⏳
+                  </span>
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <span aria-hidden="true">
+                    ✓
+                  </span>
+                  Submit Referral
+                </>
+              )}
+            </button>
+          </form>
+        </section>
+
+        {/* Reward information */}
+        <section className="referral-reward-info">
+          <div className="reward-info-item">
+            <strong>₹4</strong>
+
+            <div>
+              <h3>With Union / Labour ID</h3>
+
+              <p>
+                Earn ₹4 after the referred provider is
+                verified and successfully approved.
+              </p>
+            </div>
+          </div>
+
+          <div className="reward-info-item">
+            <strong>₹3</strong>
+
+            <div>
+              <h3>Without Union / Labour ID</h3>
+
+              <p>
+                Earn ₹3 after the referred provider is
+                verified and successfully approved.
+              </p>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );

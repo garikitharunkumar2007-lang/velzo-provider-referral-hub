@@ -11,7 +11,7 @@ import {
   where,
 } from "firebase/firestore";
 
-import { db } from "./firebaseConfig";
+import { db } from "../firebase/firebaseConfig";
 
 const referralsCollection =
   collection(db, "referrals");
