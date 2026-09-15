@@ -1,9 +1,10 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+} from "react-router-dom";
 
-// =====================================================
-// USER PAGES
-// =====================================================
-
+// User pages
 import Dashboard from "../pages/Dashboard";
 import Profile from "../pages/Profile";
 import Earnings from "../pages/Earnings";
@@ -12,10 +13,7 @@ import ReferralHistory from "../pages/ReferralHistory";
 import Notifications from "../pages/Notifications";
 import Complaints from "../pages/Complaints";
 
-// =====================================================
-// ADMIN PAGES
-// =====================================================
-
+// Admin pages
 import Admin from "../pages/admin/Admin";
 import AdminLogin from "../pages/admin/AdminLogin";
 import AdminDashboard from "../pages/admin/AdminDashboard";
@@ -28,20 +26,21 @@ import AdminProfile from "../pages/admin/AdminProfile";
 import AdminComplaints from "../pages/admin/AdminComplaints";
 import AdminComplaintDetails from "../pages/admin/AdminComplaintDetails";
 
-// Admin protection
 import { AdminGuard } from "./authGuard";
 
 export default function AppRoutes() {
   return (
     <Routes>
-      {/* =====================================================
-          PUBLIC USER ROUTES
-          No user authentication required
-      ===================================================== */}
+      {/* ================= USER WEBSITE ================= */}
 
       <Route
         path="/"
-        element={<Navigate to="/dashboard" replace />}
+        element={
+          <Navigate
+            to="/dashboard"
+            replace
+          />
+        }
       />
 
       <Route
@@ -55,18 +54,18 @@ export default function AppRoutes() {
       />
 
       <Route
-  path="/notifications"
-  element={<Notifications />}
-/>
-
-<Route
-  path="/complaints"
-  element={<Complaints />}
-/>
-
-      <Route
         path="/earnings"
         element={<Earnings />}
+      />
+
+      <Route
+        path="/notifications"
+        element={<Notifications />}
+      />
+
+      <Route
+        path="/complaints"
+        element={<Complaints />}
       />
 
       <Route
@@ -79,34 +78,33 @@ export default function AppRoutes() {
         element={<ReferralHistory />}
       />
 
-      {/* Old user authentication URLs */}
+      {/* Old user auth routes disabled */}
       <Route
         path="/login"
-        element={<Navigate to="/dashboard" replace />}
+        element={
+          <Navigate
+            to="/dashboard"
+            replace
+          />
+        }
       />
 
       <Route
         path="/register"
-        element={<Navigate to="/dashboard" replace />}
+        element={
+          <Navigate
+            to="/dashboard"
+            replace
+          />
+        }
       />
 
-      {/* =====================================================
-          PUBLIC ADMIN LOGIN ROUTE
-
-          IMPORTANT:
-          AdminLogin must stay OUTSIDE AdminGuard.
-      ===================================================== */}
+      {/* ================= ADMIN ================= */}
 
       <Route
         path="/admin/login"
         element={<AdminLogin />}
       />
-
-      {/* =====================================================
-          PROTECTED ADMIN ROUTES
-
-          Only logged-in admins can access these routes.
-      ===================================================== */}
 
       <Route element={<AdminGuard />}>
         <Route
@@ -170,13 +168,16 @@ export default function AppRoutes() {
         </Route>
       </Route>
 
-      {/* =====================================================
-          FALLBACK ROUTE
-      ===================================================== */}
+      {/* ================= FALLBACK ================= */}
 
       <Route
         path="*"
-        element={<Navigate to="/dashboard" replace />}
+        element={
+          <Navigate
+            to="/dashboard"
+            replace
+          />
+        }
       />
     </Routes>
   );
