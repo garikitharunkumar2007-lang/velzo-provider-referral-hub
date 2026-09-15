@@ -1,7 +1,17 @@
+// src/pages/ReferProvider.jsx
+
 import { useState } from "react";
-import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+
+import { useAuth } from "../hooks/useAuth";
+
+import { createReferral } from "../services/referralService";
 import { submitReferral } from "../firebase/referralService";
+
+import {
+  getReferralOwnerDetails,
+} from "../utils/referralIdentity";
+
 import "./ReferProvider.css";
 
 const INITIAL_FORM_DATA = {
@@ -15,59 +25,46 @@ const INITIAL_FORM_DATA = {
 };
 
 const PROVIDER_ROLES = [
-  {
-    value: "electrician",
-    label: "Electrician",
-  },
-  {
-    value: "plumber",
-    label: "Plumber",
-  },
-  {
-    value: "mechanic",
-    label: "Mechanic",
-  },
-  {
-    value: "ac_technician",
-    label: "AC Technician",
-  },
-  {
-    value: "carpenter",
-    label: "Carpenter",
-  },
-  {
-    value: "painter",
-    label: "Painter",
-  },
-  {
-    value: "welder",
-    label: "Welder",
-  },
-  {
-    value: "cleaner",
-    label: "Cleaner",
-  },
-  {
-    value: "other",
-    label: "Other",
-  },
+  { value: "electrician", label: "Electrician" },
+  { value: "plumber", label: "Plumber" },
+  { value: "mechanic", label: "Mechanic" },
+  { value: "ac_technician", label: "AC Technician" },
+  { value: "carpenter", label: "Carpenter" },
+  { value: "painter", label: "Painter" },
+  { value: "welder", label: "Welder" },
+  { value: "cleaner", label: "Cleaner" },
+  { value: "other", label: "Other" },
 ];
 
 function ReferProvider() {
   const navigate = useNavigate();
-  const { user } = useAuth();
 
-  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
+  const {
+    user,
+    loading: authLoading,
+    isAuthenticated,
+  } = useAuth();
+
+  const [formData, setFormData] = useState(
+    INITIAL_FORM_DATA
+  );
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (event) => {
-    const { name, value, type, checked } = event.target;
+    const {
+      name,
+      value,
+      type,
+      checked,
+    } = event.target;
 
-    setFormData((previousData) => ({
-      ...previousData,
-      [name]: type === "checkbox" ? checked : value,
+    setFormData((previous) => ({
+      ...previous,
+      [name]:
+        type === "checkbox" ? checked : value,
     }));
 
     setError("");
@@ -75,14 +72,14 @@ function ReferProvider() {
   };
 
   const handlePhoneChange = (event) => {
-    const numericValue = event.target.value.replace(/\D/g, "");
+    const numericValue = event.target.value
+      .replace(/\D/g, "")
+      .slice(0, 10);
 
-    if (numericValue.length <= 10) {
-      setFormData((previousData) => ({
-        ...previousData,
-        phone: numericValue,
-      }));
-    }
+    setFormData((previous) => ({
+      ...previous,
+      phone: numericValue,
+    }));
 
     setError("");
     setSuccess("");
@@ -92,7 +89,6 @@ function ReferProvider() {
     const fullName = formData.fullName.trim();
     const phone = formData.phone.trim();
     const address = formData.address.trim();
-    const unionId = formData.unionId.trim();
     const upiNumber = formData.upiNumber.trim();
 
     if (!fullName) {
@@ -100,18 +96,14 @@ function ReferProvider() {
     }
 
     if (fullName.length < 3) {
-      return "Provider's name must contain at least 3 characters.";
+      return "Provider name must contain at least 3 characters.";
     }
 
     if (!/^\d{10}$/.test(phone)) {
       return "Please enter a valid 10-digit phone number.";
     }
 
-    if (!address) {
-      return "Please enter the provider's address or village.";
-    }
-
-    if (address.length < 3) {
+    if (!address || address.length < 3) {
       return "Please enter a valid provider address or village.";
     }
 
@@ -119,11 +111,7 @@ function ReferProvider() {
       return "Please select the provider role.";
     }
 
-    if (!upiNumber) {
-      return "Please enter a PhonePe, Google Pay number or UPI ID.";
-    }
-
-    if (upiNumber.length < 3) {
+    if (!upiNumber || upiNumber.length < 3) {
       return "Please enter a valid payment number or UPI ID.";
     }
 
@@ -131,18 +119,25 @@ function ReferProvider() {
       return "Please confirm that the provider has given consent.";
     }
 
-    return null;
+    return "";
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (submitting) {
+    if (submitting || authLoading) {
       return;
     }
 
     setError("");
     setSuccess("");
+
+    if (!isAuthenticated || !user) {
+      setError(
+        "Your session has expired. Please login again."
+      );
+      return;
+    }
 
     const validationError = validateForm();
 
@@ -154,59 +149,34 @@ function ReferProvider() {
     try {
       setSubmitting(true);
 
-      const referrerId =
-        user?.uid ||
-        user?.id ||
-        user?.userId ||
-        user?.phone ||
-        user?.phoneNumber ||
-        user?.profile?.id ||
-        user?.userData?.id ||
-        "";
+      const ownerDetails =
+        getReferralOwnerDetails(user);
 
-      if (!referrerId) {
-        throw new Error(
-          "Your user identity is not available. Please logout and login again."
-        );
-      }
-
-      const referralPayload = {
-        referrerId,
-        referrerUid: user?.uid || "",
-        referrerUserId: user?.id || user?.userId || "",
-        referrerName:
-          user?.displayName ||
-          user?.name ||
-          user?.fullName ||
-          "",
-        referrerPhone:
-          user?.phoneNumber || user?.phone || "",
-        referrerEmail: user?.email || "",
+      const referralId = await submitReferral({
+        ...ownerDetails,
 
         providerName: formData.fullName.trim(),
         fullName: formData.fullName.trim(),
-
         phone: formData.phone.trim(),
         address: formData.address.trim(),
         role: formData.role,
         unionId: formData.unionId.trim(),
-
         upiNumber: formData.upiNumber.trim(),
+        consent: true,
+      });
 
-        consent: formData.consent,
-
-        status: "pending",
-      };
-
-      const referralId = await submitReferral(referralPayload);
-
-      console.log("Referral created successfully:", referralId);
-
-      setSuccess(
-        "Provider referral submitted successfully. It is now waiting for verification."
+      console.log(
+        "Referral created successfully:",
+        referralId
       );
 
-      setFormData({ ...INITIAL_FORM_DATA });
+      setSuccess(
+        "Provider referral submitted successfully. It is waiting for verification."
+      );
+
+      setFormData({
+        ...INITIAL_FORM_DATA,
+      });
     } catch (submissionError) {
       console.error(
         "Referral submission failed:",
@@ -222,9 +192,44 @@ function ReferProvider() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="referral-page">
+        <main className="referral-container">
+          <div className="empty-state">
+            Checking your VELZO account...
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="referral-page">
+        <main className="referral-container">
+          <div className="empty-state">
+            <h2>Please login first</h2>
+
+            <p>
+              You must be logged in to refer a provider.
+            </p>
+
+            <button
+              type="button"
+              className="referral-submit"
+              onClick={() => navigate("/login")}
+            >
+              Go to Login →
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="referral-page">
-      {/* HEADER */}
       <header className="referral-header">
         <button
           type="button"
@@ -248,9 +253,7 @@ function ReferProvider() {
         </div>
       </header>
 
-      {/* MAIN CONTENT */}
       <main className="referral-container">
-        {/* INFORMATION CARD */}
         <section className="referral-intro">
           <div className="intro-icon" aria-hidden="true">
             ＋
@@ -260,17 +263,15 @@ function ReferProvider() {
             <h2>Provider Information</h2>
 
             <p>
-              Enter the provider's details carefully. Our team
-              will verify the information before approving the
-              referral.
+              Enter the provider's details carefully.
+              Our team will verify the information
+              before approving the referral.
             </p>
           </div>
         </section>
 
-        {/* FORM CARD */}
         <section className="referral-form-card">
           <form onSubmit={handleSubmit} noValidate>
-            {/* FULL NAME */}
             <div className="referral-field">
               <label htmlFor="fullName">
                 Full Name <span>*</span>
@@ -289,7 +290,6 @@ function ReferProvider() {
               />
             </div>
 
-            {/* PHONE NUMBER */}
             <div className="referral-field">
               <label htmlFor="phone">
                 Phone Number <span>*</span>
@@ -313,7 +313,6 @@ function ReferProvider() {
               </div>
             </div>
 
-            {/* ADDRESS */}
             <div className="referral-field">
               <label htmlFor="address">
                 Address / Village <span>*</span>
@@ -331,7 +330,6 @@ function ReferProvider() {
               />
             </div>
 
-            {/* PROVIDER ROLE */}
             <div className="referral-field">
               <label htmlFor="role">
                 Provider Role <span>*</span>
@@ -348,18 +346,17 @@ function ReferProvider() {
                   Select provider role
                 </option>
 
-                {PROVIDER_ROLES.map((providerRole) => (
+                {PROVIDER_ROLES.map((item) => (
                   <option
-                    key={providerRole.value}
-                    value={providerRole.value}
+                    key={item.value}
+                    value={item.value}
                   >
-                    {providerRole.label}
+                    {item.label}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* UNION / LABOUR ID */}
             <div className="referral-field">
               <label htmlFor="unionId">
                 Union / Labour ID
@@ -376,12 +373,11 @@ function ReferProvider() {
               />
 
               <small>
-                Providing a valid Union / Labour ID may qualify
+                A valid Union / Labour ID may qualify
                 the successful referral for the ₹4 reward.
               </small>
             </div>
 
-            {/* UPI / PAYMENT DETAILS */}
             <div className="referral-field">
               <label htmlFor="upiNumber">
                 PhonePe / Google Pay Number or UPI ID{" "}
@@ -401,12 +397,11 @@ function ReferProvider() {
               />
 
               <small>
-                This will be used only for referral reward
-                payment after successful admin approval.
+                Used only for referral reward payment
+                after successful approval.
               </small>
             </div>
 
-            {/* CONSENT */}
             <div className="consent-box">
               <input
                 id="consent"
@@ -418,12 +413,11 @@ function ReferProvider() {
               />
 
               <label htmlFor="consent">
-                I confirm that the provider has given consent
-                to be referred to VELZO.
+                I confirm that the provider has given
+                consent to be referred to VELZO.
               </label>
             </div>
 
-            {/* ERROR MESSAGE */}
             {error && (
               <div
                 className="referral-error"
@@ -434,7 +428,6 @@ function ReferProvider() {
               </div>
             )}
 
-            {/* SUCCESS MESSAGE */}
             {success && (
               <div
                 className="referral-success"
@@ -445,13 +438,14 @@ function ReferProvider() {
               </div>
             )}
 
-            {/* SUBMIT BUTTON */}
             <button
               type="submit"
               className="referral-submit"
-              disabled={submitting}
+              disabled={submitting || authLoading}
             >
-              {submitting ? "Submitting..." : "Submit Referral"}
+              {submitting
+                ? "Submitting..."
+                : "Submit Referral"}
 
               {!submitting && (
                 <span aria-hidden="true">→</span>
@@ -460,14 +454,12 @@ function ReferProvider() {
           </form>
         </section>
 
-        {/* REWARD INFORMATION */}
         <section className="referral-reward-info">
           <div className="reward-info-item">
             <strong>₹4</strong>
 
             <div>
               <h3>With Union / Labour ID</h3>
-
               <p>
                 After successful verification and onboarding.
               </p>
@@ -479,7 +471,6 @@ function ReferProvider() {
 
             <div>
               <h3>Without Union / Labour ID</h3>
-
               <p>
                 After successful verification and onboarding.
               </p>

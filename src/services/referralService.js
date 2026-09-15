@@ -1,3 +1,5 @@
+// src/services/referralService.js
+
 import {
   addDoc,
   collection,
@@ -11,38 +13,40 @@ import {
   where,
 } from "firebase/firestore";
 
-import {
-  db,
-} from "../firebase/firebaseConfig";
+import { db } from "../firebase/firebaseConfig";
 
-const referralsCollection = collection(
-  db,
-  "referrals"
-);
+const referralsCollection = collection(db, "referrals");
+
+function cleanText(value) {
+  return String(value || "").trim();
+}
 
 /**
  * Get referral document reference.
  */
 export function getReferralRef(referralId) {
-  if (!referralId) {
+  const cleanReferralId = cleanText(referralId);
+
+  if (!cleanReferralId) {
     throw new Error("Referral ID is required.");
   }
 
-  return doc(db, "referrals", referralId);
+  return doc(db, "referrals", cleanReferralId);
 }
 
 /**
  * Create a referral.
- *
- * Note:
- * Referral verification and reward approval must be
- * performed by secure backend Cloud Functions.
  */
 export async function createReferral({
   referrerId = "",
+  referrerUserId = "",
+  referrerUid = "",
   referrerName = "",
   referrerPhone = "",
+  referrerEmail = "",
+
   providerName = "",
+  fullName = "",
   phone = "",
   address = "",
   role = "",
@@ -50,33 +54,38 @@ export async function createReferral({
   upiNumber = "",
   consent = false,
 }) {
-  const cleanProviderName = String(
-    providerName
-  ).trim();
+  const cleanReferrerId = cleanText(referrerId);
+  const cleanReferrerUserId = cleanText(
+    referrerUserId || referrerId
+  );
+  const cleanReferrerUid = cleanText(referrerUid);
 
-  const cleanPhone = String(phone).trim();
+  const cleanReferrerName = cleanText(referrerName);
+  const cleanReferrerPhone = cleanText(referrerPhone);
+  const cleanReferrerEmail = cleanText(referrerEmail);
 
-  const cleanAddress = String(address).trim();
+  const cleanProviderName = cleanText(
+    providerName || fullName
+  );
+  const cleanPhone = cleanText(phone);
+  const cleanAddress = cleanText(address);
+  const cleanRole = cleanText(role);
+  const cleanUnionId = cleanText(unionId);
+  const cleanUpiNumber = cleanText(upiNumber);
 
-  const cleanRole = String(role).trim();
-
-  const cleanUnionId = String(unionId).trim();
-
-  const cleanUpiNumber = String(
-    upiNumber
-  ).trim();
-
-  if (!referrerId) {
-    throw new Error("Referrer ID is required.");
+  if (!cleanReferrerId) {
+    throw new Error(
+      "Your account identity is missing. Please login again."
+    );
   }
 
   if (!cleanProviderName) {
     throw new Error("Provider name is required.");
   }
 
-  if (!cleanPhone) {
+  if (!/^\d{10}$/.test(cleanPhone)) {
     throw new Error(
-      "Provider phone number is required."
+      "Provider phone number must contain 10 digits."
     );
   }
 
@@ -84,85 +93,101 @@ export async function createReferral({
     throw new Error("Provider address is required.");
   }
 
+  if (!cleanRole) {
+    throw new Error("Provider role is required.");
+  }
+
   if (!cleanUpiNumber) {
     throw new Error(
-      "UPI ID or payment number is required."
+      "PhonePe, Google Pay number or UPI ID is required."
     );
   }
 
   if (!consent) {
     throw new Error(
-      "Please confirm provider consent before submitting."
+      "Provider consent is required before submission."
     );
   }
 
   const referralData = {
-    referrerId,
-    referrerName,
-    referrerPhone,
+    // Stable ownership fields
+    referrerId: cleanReferrerId,
+    referrerUserId: cleanReferrerUserId,
+    referrerUid: cleanReferrerUid,
 
+    referrerName: cleanReferrerName,
+    referrerPhone: cleanReferrerPhone,
+    referrerEmail: cleanReferrerEmail,
+
+    // Provider details
     providerName: cleanProviderName,
+    fullName: cleanProviderName,
     phone: cleanPhone,
+    providerPhone: cleanPhone,
     address: cleanAddress,
     role: cleanRole,
     unionId: cleanUnionId,
     upiNumber: cleanUpiNumber,
 
+    // Consent
     consent: true,
     consentAt: serverTimestamp(),
 
+    // Status
     status: "pending",
     verificationStatus: "pending",
     adminStatus: "pending",
     onboardingStatus: "pending",
 
+    // Reward
     reward: 0,
     rewardStatus: "not_earned",
     paymentStatus: "not_paid",
 
+    // Verification data
     matchedCollection: null,
     matchedDocumentId: null,
     rejectionReason: [],
 
+    // Timestamps
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-
     verifiedAt: null,
     approvedAt: null,
     rejectedAt: null,
     paidAt: null,
   };
 
-  const referralDocument = await addDoc(
+  const createdDocument = await addDoc(
     referralsCollection,
     referralData
   );
 
-  return referralDocument.id;
+  return createdDocument.id;
 }
 
 /**
- * Get referral by ID.
+ * Get one referral.
  */
-export async function getReferralById(
-  referralId
-) {
-  const referralSnapshot = await getDoc(
+export async function getReferralById(referralId) {
+  const snapshot = await getDoc(
     getReferralRef(referralId)
   );
 
-  if (!referralSnapshot.exists()) {
+  if (!snapshot.exists()) {
     return null;
   }
 
   return {
-    id: referralSnapshot.id,
-    ...referralSnapshot.data(),
+    id: snapshot.id,
+    ...snapshot.data(),
   };
 }
 
 /**
- * Get all referrals.
+ * Admin-only function.
+ *
+ * Use this only from admin pages protected by role checks.
  */
 export async function getAllReferrals() {
   const referralsQuery = query(
@@ -172,126 +197,137 @@ export async function getAllReferrals() {
 
   const snapshot = await getDocs(referralsQuery);
 
-  return snapshot.docs.map((referralDocument) => ({
-    id: referralDocument.id,
-    ...referralDocument.data(),
+  return snapshot.docs.map((item) => ({
+    id: item.id,
+    ...item.data(),
   }));
 }
 
 /**
- * Get referrals submitted by a user.
+ * Get only referrals belonging to one referrer.
  */
 export async function getReferralsByReferrerId(
   referrerId
 ) {
-  if (!referrerId) {
+  const cleanReferrerId = cleanText(referrerId);
+
+  if (!cleanReferrerId) {
     throw new Error("Referrer ID is required.");
   }
 
   const referralsQuery = query(
     referralsCollection,
-    where("referrerId", "==", referrerId),
+    where("referrerId", "==", cleanReferrerId),
     orderBy("createdAt", "desc")
   );
 
   const snapshot = await getDocs(referralsQuery);
 
-  return snapshot.docs.map((referralDocument) => ({
-    id: referralDocument.id,
-    ...referralDocument.data(),
+  return snapshot.docs.map((item) => ({
+    id: item.id,
+    ...item.data(),
   }));
 }
 
 /**
  * Get referrals by status.
+ *
+ * Admin use only.
  */
-export async function getReferralsByStatus(
-  status
-) {
-  if (!status) {
+export async function getReferralsByStatus(status) {
+  const cleanStatus = cleanText(status);
+
+  if (!cleanStatus) {
     throw new Error("Referral status is required.");
   }
 
   const referralsQuery = query(
     referralsCollection,
-    where("status", "==", status),
+    where("status", "==", cleanStatus),
     orderBy("createdAt", "desc")
   );
 
   const snapshot = await getDocs(referralsQuery);
 
-  return snapshot.docs.map((referralDocument) => ({
-    id: referralDocument.id,
-    ...referralDocument.data(),
+  return snapshot.docs.map((item) => ({
+    id: item.id,
+    ...item.data(),
   }));
 }
 
 /**
  * Get referrals by admin status.
+ *
+ * Admin use only.
  */
 export async function getReferralsByAdminStatus(
   adminStatus
 ) {
-  if (!adminStatus) {
+  const cleanStatus = cleanText(adminStatus);
+
+  if (!cleanStatus) {
     throw new Error(
-      "Admin referral status is required."
+      "Referral admin status is required."
     );
   }
 
   const referralsQuery = query(
     referralsCollection,
-    where("adminStatus", "==", adminStatus),
+    where("adminStatus", "==", cleanStatus),
     orderBy("createdAt", "desc")
   );
 
   const snapshot = await getDocs(referralsQuery);
 
-  return snapshot.docs.map((referralDocument) => ({
-    id: referralDocument.id,
-    ...referralDocument.data(),
+  return snapshot.docs.map((item) => ({
+    id: item.id,
+    ...item.data(),
   }));
 }
 
 /**
- * Update referral admin status.
+ * Update admin status.
  *
- * This function should eventually be called through
- * a protected Cloud Function for production security.
+ * This should ideally be moved to a protected Cloud Function.
  */
 export async function updateReferralAdminStatus(
   referralId,
   adminStatus,
   rejectionReason = []
 ) {
-  if (!referralId) {
+  const cleanReferralId = cleanText(referralId);
+  const cleanStatus = cleanText(adminStatus);
+
+  if (!cleanReferralId) {
     throw new Error("Referral ID is required.");
   }
 
-  if (!adminStatus) {
+  if (!cleanStatus) {
     throw new Error(
       "Referral admin status is required."
     );
   }
 
   const updates = {
-    adminStatus,
+    adminStatus: cleanStatus,
     updatedAt: serverTimestamp(),
   };
 
-  if (adminStatus === "approved") {
+  if (cleanStatus === "approved") {
     updates.approvedAt = serverTimestamp();
   }
 
-  if (adminStatus === "rejected") {
+  if (cleanStatus === "rejected") {
     updates.rejectedAt = serverTimestamp();
-    updates.rejectionReason =
-      Array.isArray(rejectionReason)
-        ? rejectionReason
-        : [String(rejectionReason)];
+    updates.rejectionReason = Array.isArray(
+      rejectionReason
+    )
+      ? rejectionReason
+      : [cleanText(rejectionReason)];
   }
 
   await updateDoc(
-    getReferralRef(referralId),
+    getReferralRef(cleanReferralId),
     updates
   );
 
@@ -303,26 +339,29 @@ export async function updateReferralAdminStatus(
 }
 
 /**
- * Update referral onboarding status.
+ * Update onboarding status.
  */
 export async function updateReferralOnboardingStatus(
   referralId,
   onboardingStatus
 ) {
-  if (!referralId) {
+  const cleanReferralId = cleanText(referralId);
+  const cleanStatus = cleanText(onboardingStatus);
+
+  if (!cleanReferralId) {
     throw new Error("Referral ID is required.");
   }
 
-  if (!onboardingStatus) {
+  if (!cleanStatus) {
     throw new Error(
       "Onboarding status is required."
     );
   }
 
   await updateDoc(
-    getReferralRef(referralId),
+    getReferralRef(cleanReferralId),
     {
-      onboardingStatus,
+      onboardingStatus: cleanStatus,
       updatedAt: serverTimestamp(),
     }
   );
@@ -335,60 +374,55 @@ export async function updateReferralOnboardingStatus(
 }
 
 /**
- * Get referral statistics.
+ * Admin statistics.
  */
 export async function getReferralStats() {
   const snapshot = await getDocs(
     referralsCollection
   );
 
-  const referrals = snapshot.docs.map(
-    (referralDocument) =>
-      referralDocument.data()
+  const referrals = snapshot.docs.map((item) =>
+    item.data()
   );
 
   return {
     totalReferrals: referrals.length,
 
     pendingReferrals: referrals.filter(
-      (referral) =>
-        referral.status === "pending"
+      (item) => item.status === "pending"
     ).length,
 
     approvedReferrals: referrals.filter(
-      (referral) =>
-        referral.adminStatus === "approved"
+      (item) => item.adminStatus === "approved"
     ).length,
 
     rejectedReferrals: referrals.filter(
-      (referral) =>
-        referral.adminStatus === "rejected"
+      (item) => item.adminStatus === "rejected"
     ).length,
 
     verifiedReferrals: referrals.filter(
-      (referral) =>
-        referral.verificationStatus === "verified"
+      (item) =>
+        item.verificationStatus === "verified"
     ).length,
 
     completedOnboarding: referrals.filter(
-      (referral) =>
-        referral.onboardingStatus === "completed"
+      (item) =>
+        item.onboardingStatus === "completed"
     ).length,
 
     totalRewards: referrals.reduce(
-      (total, referral) =>
-        total + Number(referral.reward || 0),
+      (total, item) =>
+        total + Number(item.reward || 0),
       0
     ),
 
     paidRewards: referrals
       .filter(
-        (referral) =>
-          referral.paymentStatus === "paid"
+        (item) => item.paymentStatus === "paid"
       )
       .reduce(
-        (total, referral) =>
-          total + Number(referral.reward || 0),
+        (total, item) =>
+          total + Number(item.reward || 0),
         0
       ),
   };
