@@ -1,58 +1,20 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  useEffect,
+  useState,
+} from "react";
 
-import { submitReferral } from "../firebase/referralService";
+import {
+  collection,
+  onSnapshot,
+  query,
+  where,
+} from "firebase/firestore";
 
-import "./ReferProvider.css";
+import { db } from "../firebase/firebaseConfig";
 
-const INITIAL_FORM_DATA = {
-  fullName: "",
-  phone: "",
-  address: "",
-  role: "",
-  unionId: "",
-  upiNumber: "",
-  consent: false,
-};
+import StatusBadge from "../components/StatusBadge";
 
-const PROVIDER_ROLES = [
-  {
-    value: "electrician",
-    label: "Electrician",
-  },
-  {
-    value: "plumber",
-    label: "Plumber",
-  },
-  {
-    value: "mechanic",
-    label: "Mechanic",
-  },
-  {
-    value: "ac_technician",
-    label: "AC Technician",
-  },
-  {
-    value: "carpenter",
-    label: "Carpenter",
-  },
-  {
-    value: "painter",
-    label: "Painter",
-  },
-  {
-    value: "welder",
-    label: "Welder",
-  },
-  {
-    value: "cleaner",
-    label: "Cleaner",
-  },
-  {
-    value: "other",
-    label: "Other",
-  },
-];
+import "./ReferralHistory.css";
 
 const GUEST_STORAGE_KEY =
   "velzoGuestReferralOwner";
@@ -88,7 +50,7 @@ function getGuestOwnerId() {
     return ownerId;
   } catch (error) {
     console.error(
-      "Guest owner ID error:",
+      "Guest history owner error:",
       error
     );
 
@@ -96,370 +58,287 @@ function getGuestOwnerId() {
   }
 }
 
-export default function ReferProvider() {
-  const navigate = useNavigate();
+function formatDate(value) {
+  if (!value) {
+    return "—";
+  }
 
-  const [formData, setFormData] = useState(
-    INITIAL_FORM_DATA
+  try {
+    let date;
+
+    if (
+      typeof value.toDate === "function"
+    ) {
+      date = value.toDate();
+    } else if (
+      value.seconds
+    ) {
+      date = new Date(
+        value.seconds * 1000
+      );
+    } else {
+      date = new Date(value);
+    }
+
+    if (
+      !date ||
+      Number.isNaN(date.getTime())
+    ) {
+      return "—";
+    }
+
+    return date.toLocaleString(
+      "en-IN",
+      {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }
+    );
+  } catch {
+    return "—";
+  }
+}
+
+function getReward(referral) {
+  const possibleValues = [
+    referral.paymentAmount,
+    referral.rewardAmount,
+    referral.rewardEarned,
+    referral.referralReward,
+    referral.reward,
+    referral.earnings,
+  ];
+
+  const value =
+    possibleValues.find(
+      (item) =>
+        item !== undefined &&
+        item !== null &&
+        item !== ""
+    ) || 0;
+
+  const numberValue = Number(
+    String(value)
+      .replace(/₹/g, "")
+      .replace(/,/g, "")
   );
 
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  return Number.isFinite(numberValue)
+    ? numberValue
+    : 0;
+}
 
-  function handleChange(event) {
-    const {
-      name,
-      value,
-      type,
-      checked,
-    } = event.target;
+function getStatus(referral) {
+  return (
+    referral.status ||
+    referral.verificationStatus ||
+    referral.adminStatus ||
+    "pending"
+  );
+}
 
-    setFormData((previousData) => ({
-      ...previousData,
-      [name]:
-        type === "checkbox"
-          ? checked
-          : value,
-    }));
+export default function ReferralHistory() {
+  const [referrals, setReferrals] =
+    useState([]);
 
-    setError("");
-    setSuccess("");
-  }
+  const [loading, setLoading] =
+    useState(true);
 
-  function handlePhoneChange(event) {
-    const value = event.target.value
-      .replace(/\D/g, "")
-      .slice(0, 10);
+  const [error, setError] =
+    useState("");
 
-    setFormData((previousData) => ({
-      ...previousData,
-      phone: value,
-    }));
+  useEffect(() => {
+    const ownerId =
+      getGuestOwnerId();
 
-    setError("");
-    setSuccess("");
-  }
+    const referralsQuery = query(
+      collection(db, "referrals"),
+      where(
+        "referrerId",
+        "==",
+        ownerId
+      )
+    );
 
-  function validateForm() {
-    const fullName =
-      formData.fullName.trim();
+    const unsubscribe =
+      onSnapshot(
+        referralsQuery,
+        (snapshot) => {
+          const data =
+            snapshot.docs
+              .map((item) => ({
+                id: item.id,
+                ...item.data(),
+              }))
+              .sort((a, b) => {
+                const first =
+                  a.createdAt?.seconds ||
+                  0;
 
-    const phone =
-      formData.phone.trim();
+                const second =
+                  b.createdAt?.seconds ||
+                  0;
 
-    const address =
-      formData.address.trim();
+                return second - first;
+              });
 
-    const upiNumber =
-      formData.upiNumber.trim();
+          setReferrals(data);
+          setLoading(false);
+          setError("");
+        },
+        (snapshotError) => {
+          console.error(
+            "Referral history error:",
+            snapshotError
+          );
 
-    if (!fullName) {
-      return "Please enter the provider's full name.";
-    }
+          setError(
+            "Unable to load referral history."
+          );
 
-    if (fullName.length < 3) {
-      return "Provider name must contain at least 3 characters.";
-    }
-
-    if (!/^[6-9]\d{9}$/.test(phone)) {
-      return "Please enter a valid 10-digit phone number.";
-    }
-
-    if (!address) {
-      return "Please enter the provider's address or village.";
-    }
-
-    if (address.length < 3) {
-      return "Please enter a valid provider address.";
-    }
-
-    if (!formData.role) {
-      return "Please select the provider role.";
-    }
-
-    if (!upiNumber) {
-      return "Please enter a PhonePe, Google Pay number or UPI ID.";
-    }
-
-    if (upiNumber.length < 3) {
-      return "Please enter a valid payment number or UPI ID.";
-    }
-
-    if (!formData.consent) {
-      return "Please confirm that the provider has given consent.";
-    }
-
-    return "";
-  }
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-
-    if (submitting) {
-      return;
-    }
-
-    setError("");
-    setSuccess("");
-
-    const validationError =
-      validateForm();
-
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-
-      const guestOwnerId =
-        getGuestOwnerId();
-
-      const referralPayload = {
-        referrerId: guestOwnerId,
-        referrerUid: guestOwnerId,
-        referrerUserId: guestOwnerId,
-
-        referrerName: "Website User",
-        referrerPhone: "",
-        referrerEmail: "",
-
-        providerName:
-          formData.fullName.trim(),
-
-        fullName:
-          formData.fullName.trim(),
-
-        phone:
-          formData.phone.trim(),
-
-        address:
-          formData.address.trim(),
-
-        role:
-          formData.role,
-
-        unionId:
-          formData.unionId.trim(),
-
-        upiNumber:
-          formData.upiNumber.trim(),
-
-        consent:
-          formData.consent,
-
-        status: "pending",
-      };
-
-      await submitReferral(
-        referralPayload
+          setLoading(false);
+        }
       );
 
-      setSuccess(
-        "Provider referral submitted successfully. It is waiting for verification."
-      );
-
-      setFormData({
-        ...INITIAL_FORM_DATA,
-      });
-    } catch (submissionError) {
-      console.error(
-        "Referral submission failed:",
-        submissionError
-      );
-
-      setError(
-        submissionError?.message ||
-          "Unable to submit referral. Please try again."
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }
+    return () => unsubscribe();
+  }, []);
 
   return (
-    <div className="referral-page">
-      <header className="referral-header">
-        <button
-          type="button"
-          className="back-button"
-          onClick={() =>
-            navigate("/dashboard")
-          }
-        >
-          ←
-        </button>
+    <div className="history-page">
+      <div className="page-heading">
+        <p className="eyebrow">
+          VELZO
+        </p>
 
-        <div>
-          <span className="eyebrow">
-            VELZO PROVIDER REFERRAL HUB
-          </span>
+        <h1>
+          Referral History
+        </h1>
 
-          <h1>Refer a Provider</h1>
+        <p>
+          Track the providers you referred.
+        </p>
+      </div>
 
-          <p>
-            Help a genuine skilled provider join VELZO.
-          </p>
+      {loading && (
+        <div className="empty-state">
+          Loading referral history...
         </div>
-      </header>
+      )}
 
-      <main className="referral-container">
-        <section className="referral-intro">
-          <div
-            className="intro-icon"
-            aria-hidden="true"
-          >
-            ＋
+      {!loading && error && (
+        <div className="empty-state">
+          {error}
+        </div>
+      )}
+
+      {!loading &&
+        !error &&
+        referrals.length === 0 && (
+          <div className="empty-state">
+            You haven't submitted any referrals yet.
           </div>
+        )}
 
-          <div>
-            <h2>Provider Information</h2>
+      {!loading &&
+        !error &&
+        referrals.length > 0 && (
+          <div className="history-list">
+            {referrals.map((referral) => {
+              const status =
+                getStatus(referral);
 
-            <p>
-              Enter the provider details carefully.
-            </p>
+              const reward =
+                getReward(referral);
+
+              return (
+                <div
+                  className="history-card"
+                  key={referral.id}
+                >
+                  <div className="history-top">
+                    <div>
+                      <span className="small-label">
+                        PROVIDER
+                      </span>
+
+                      <h2>
+                        {referral.providerName ||
+                          referral.fullName ||
+                          "—"}
+                      </h2>
+                    </div>
+
+                    <StatusBadge
+                      value={status}
+                    />
+                  </div>
+
+                  <div className="history-details">
+                    <div>
+                      <span>
+                        Phone
+                      </span>
+
+                      <strong>
+                        {referral.phone ||
+                          "—"}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>
+                        Union / Labour ID
+                      </span>
+
+                      <strong>
+                        {referral.unionId ||
+                          "Not provided"}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>
+                        Reward
+                      </span>
+
+                      <strong>
+                        ₹
+                        {reward.toLocaleString(
+                          "en-IN"
+                        )}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>
+                        Date
+                      </span>
+
+                      <strong>
+                        {formatDate(
+                          referral.createdAt
+                        )}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {status === "rejected" && (
+                    <div className="rejection-reason-box">
+                      <strong>
+                        Rejection Reason
+                      </strong>
+
+                      <p>
+                        {referral.rejectionReason ||
+                          "Referral was rejected."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </section>
-
-        <form
-          className="referral-form"
-          onSubmit={handleSubmit}
-        >
-          <label htmlFor="fullName">
-            Provider Full Name
-          </label>
-
-          <input
-            id="fullName"
-            name="fullName"
-            type="text"
-            value={formData.fullName}
-            onChange={handleChange}
-            placeholder="Enter provider full name"
-            required
-          />
-
-          <label htmlFor="phone">
-            Provider Phone Number
-          </label>
-
-          <input
-            id="phone"
-            name="phone"
-            type="tel"
-            inputMode="numeric"
-            value={formData.phone}
-            onChange={handlePhoneChange}
-            placeholder="10-digit phone number"
-            maxLength={10}
-            required
-          />
-
-          <label htmlFor="address">
-            Address / Village
-          </label>
-
-          <textarea
-            id="address"
-            name="address"
-            value={formData.address}
-            onChange={handleChange}
-            placeholder="Enter provider address or village"
-            rows={3}
-            required
-          />
-
-          <label htmlFor="role">
-            Provider Role
-          </label>
-
-          <select
-            id="role"
-            name="role"
-            value={formData.role}
-            onChange={handleChange}
-            required
-          >
-            <option value="">
-              Select provider role
-            </option>
-
-            {PROVIDER_ROLES.map((item) => (
-              <option
-                key={item.value}
-                value={item.value}
-              >
-                {item.label}
-              </option>
-            ))}
-          </select>
-
-          <label htmlFor="unionId">
-            Union / Labour ID
-          </label>
-
-          <input
-            id="unionId"
-            name="unionId"
-            type="text"
-            value={formData.unionId}
-            onChange={handleChange}
-            placeholder="Optional"
-          />
-
-          <label htmlFor="upiNumber">
-            PhonePe / Google Pay / UPI
-          </label>
-
-          <input
-            id="upiNumber"
-            name="upiNumber"
-            type="text"
-            value={formData.upiNumber}
-            onChange={handleChange}
-            placeholder="Enter payment number or UPI ID"
-            required
-          />
-
-          <label className="consent-row">
-            <input
-              type="checkbox"
-              name="consent"
-              checked={formData.consent}
-              onChange={handleChange}
-            />
-
-            <span>
-              Provider has given consent to be referred
-              to VELZO.
-            </span>
-          </label>
-
-          {error && (
-            <div className="form-error">
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="form-success">
-              {success}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            className="submit-button"
-            disabled={submitting}
-          >
-            {submitting
-              ? "Submitting..."
-              : "Submit Referral"}
-          </button>
-        </form>
-      </main>
+        )}
     </div>
   );
 }
