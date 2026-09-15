@@ -676,7 +676,10 @@ function Dashboard() {
 
         <div className="brand">
           <div className="brand-logo">
-            V
+            <img
+              src="/velzo-logo.png"
+              alt="VELZO Logo"
+            />
           </div>
 
           <div className="brand-text">

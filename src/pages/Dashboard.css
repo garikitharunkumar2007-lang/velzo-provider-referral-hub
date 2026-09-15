@@ -1005,3 +1005,25 @@
     font-size: 14px;
   }
 }
+/* =====================================================
+   VELZO SIDEBAR LOGO
+===================================================== */
+
+.brand-logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.brand-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
