@@ -1,5 +1,3 @@
-// src/services/referralService.js
-
 import {
   addDoc,
   collection,
@@ -13,40 +11,38 @@ import {
   where,
 } from "firebase/firestore";
 
-import { db } from "../firebase/firebaseConfig";
+import { db } from "./firebaseConfig";
 
-const referralsCollection = collection(db, "referrals");
+const referralsCollection =
+  collection(db, "referrals");
 
 function cleanText(value) {
-  return String(value || "").trim();
+  return String(value ?? "").trim();
 }
 
-/**
- * Get referral document reference.
- */
-export function getReferralRef(referralId) {
-  const cleanReferralId = cleanText(referralId);
-
-  if (!cleanReferralId) {
-    throw new Error("Referral ID is required.");
+function getReferralRef(referralId) {
+  if (!referralId) {
+    throw new Error(
+      "Referral ID is required."
+    );
   }
 
-  return doc(db, "referrals", cleanReferralId);
+  return doc(
+    db,
+    "referrals",
+    referralId
+  );
 }
 
-/**
- * Create a referral.
- */
 export async function createReferral({
   referrerId = "",
-  referrerUserId = "",
   referrerUid = "",
+  referrerUserId = "",
+  referrerEmail = "",
   referrerName = "",
   referrerPhone = "",
-  referrerEmail = "",
 
   providerName = "",
-  fullName = "",
   phone = "",
   address = "",
   role = "",
@@ -54,125 +50,161 @@ export async function createReferral({
   upiNumber = "",
   consent = false,
 }) {
-  const cleanReferrerId = cleanText(referrerId);
-  const cleanReferrerUserId = cleanText(
-    referrerUserId || referrerId
-  );
-  const cleanReferrerUid = cleanText(referrerUid);
+  const referralOwnerId =
+    cleanText(
+      referrerId ||
+        referrerUid ||
+        referrerUserId
+    );
 
-  const cleanReferrerName = cleanText(referrerName);
-  const cleanReferrerPhone = cleanText(referrerPhone);
-  const cleanReferrerEmail = cleanText(referrerEmail);
+  const cleanProviderName =
+    cleanText(providerName);
 
-  const cleanProviderName = cleanText(
-    providerName || fullName
-  );
-  const cleanPhone = cleanText(phone);
-  const cleanAddress = cleanText(address);
-  const cleanRole = cleanText(role);
-  const cleanUnionId = cleanText(unionId);
-  const cleanUpiNumber = cleanText(upiNumber);
+  const cleanPhone =
+    cleanText(phone);
 
-  if (!cleanReferrerId) {
+  const cleanAddress =
+    cleanText(address);
+
+  const cleanRole =
+    cleanText(role);
+
+  const cleanUnionId =
+    cleanText(unionId);
+
+  const cleanUpiNumber =
+    cleanText(upiNumber);
+
+  if (!referralOwnerId) {
     throw new Error(
-      "Your account identity is missing. Please login again."
+      "Referral owner ID is missing."
     );
   }
 
   if (!cleanProviderName) {
-    throw new Error("Provider name is required.");
+    throw new Error(
+      "Provider name is required."
+    );
   }
 
-  if (!/^\d{10}$/.test(cleanPhone)) {
+  if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
     throw new Error(
-      "Provider phone number must contain 10 digits."
+      "Please enter a valid 10-digit phone number."
     );
   }
 
   if (!cleanAddress) {
-    throw new Error("Provider address is required.");
+    throw new Error(
+      "Provider address is required."
+    );
   }
 
   if (!cleanRole) {
-    throw new Error("Provider role is required.");
+    throw new Error(
+      "Provider role is required."
+    );
   }
 
   if (!cleanUpiNumber) {
     throw new Error(
-      "PhonePe, Google Pay number or UPI ID is required."
+      "UPI ID or payment number is required."
     );
   }
 
   if (!consent) {
     throw new Error(
-      "Provider consent is required before submission."
+      "Provider consent is required."
     );
   }
 
   const referralData = {
-    // Stable ownership fields
-    referrerId: cleanReferrerId,
-    referrerUserId: cleanReferrerUserId,
-    referrerUid: cleanReferrerUid,
+    referrerId: referralOwnerId,
+    referrerUid: referralOwnerId,
+    referrerUserId: referralOwnerId,
 
-    referrerName: cleanReferrerName,
-    referrerPhone: cleanReferrerPhone,
-    referrerEmail: cleanReferrerEmail,
+    referrerEmail:
+      cleanText(referrerEmail),
 
-    // Provider details
-    providerName: cleanProviderName,
-    fullName: cleanProviderName,
-    phone: cleanPhone,
-    providerPhone: cleanPhone,
-    address: cleanAddress,
-    role: cleanRole,
-    unionId: cleanUnionId,
-    upiNumber: cleanUpiNumber,
+    referrerName:
+      cleanText(referrerName),
 
-    // Consent
+    referrerPhone:
+      cleanText(referrerPhone),
+
+    providerName:
+      cleanProviderName,
+
+    fullName:
+      cleanProviderName,
+
+    phone:
+      cleanPhone,
+
+    address:
+      cleanAddress,
+
+    role:
+      cleanRole,
+
+    unionId:
+      cleanUnionId,
+
+    upiNumber:
+      cleanUpiNumber,
+
     consent: true,
     consentAt: serverTimestamp(),
 
-    // Status
     status: "pending",
     verificationStatus: "pending",
     adminStatus: "pending",
     onboardingStatus: "pending",
 
-    // Reward
     reward: 0,
+    rewardAmount: 0,
+    rewardEarned: 0,
+    referralReward: 0,
+    paymentAmount: 0,
+
     rewardStatus: "not_earned",
     paymentStatus: "not_paid",
 
-    // Verification data
-    matchedCollection: null,
-    matchedDocumentId: null,
-    rejectionReason: [],
+    rejectionReason: "",
+    rejectionReasons: [],
 
-    // Timestamps
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+
     verifiedAt: null,
     approvedAt: null,
     rejectedAt: null,
     paidAt: null,
   };
 
-  const createdDocument = await addDoc(
-    referralsCollection,
-    referralData
-  );
+  const referralDocument =
+    await addDoc(
+      referralsCollection,
+      referralData
+    );
 
-  return createdDocument.id;
+  return referralDocument.id;
 }
 
-/**
- * Get one referral.
- */
-export async function getReferralById(referralId) {
-  const snapshot = await getDoc(
-    getReferralRef(referralId)
+export async function submitReferral(
+  referralData
+) {
+  return createReferral(
+    referralData
   );
+}
+
+export async function getReferralById(
+  referralId
+) {
+  const snapshot =
+    await getDoc(
+      getReferralRef(referralId)
+    );
 
   if (!snapshot.exists()) {
     return null;
@@ -184,259 +216,79 @@ export async function getReferralById(referralId) {
   };
 }
 
-/**
- * Admin-only function.
- *
- * Use this only from admin pages protected by role checks.
- */
 export async function getAllReferrals() {
   const referralsQuery = query(
     referralsCollection,
     orderBy("createdAt", "desc")
   );
 
-  const snapshot = await getDocs(referralsQuery);
+  const snapshot =
+    await getDocs(
+      referralsQuery
+    );
 
-  return snapshot.docs.map((item) => ({
-    id: item.id,
-    ...item.data(),
-  }));
+  return snapshot.docs.map(
+    (item) => ({
+      id: item.id,
+      ...item.data(),
+    })
+  );
 }
 
-/**
- * Get only referrals belonging to one referrer.
- */
 export async function getReferralsByReferrerId(
   referrerId
 ) {
-  const cleanReferrerId = cleanText(referrerId);
+  const ownerId =
+    cleanText(referrerId);
 
-  if (!cleanReferrerId) {
-    throw new Error("Referrer ID is required.");
+  if (!ownerId) {
+    return [];
   }
 
   const referralsQuery = query(
     referralsCollection,
-    where("referrerId", "==", cleanReferrerId),
-    orderBy("createdAt", "desc")
-  );
-
-  const snapshot = await getDocs(referralsQuery);
-
-  return snapshot.docs.map((item) => ({
-    id: item.id,
-    ...item.data(),
-  }));
-}
-
-/**
- * Get referrals by status.
- *
- * Admin use only.
- */
-export async function getReferralsByStatus(status) {
-  const cleanStatus = cleanText(status);
-
-  if (!cleanStatus) {
-    throw new Error("Referral status is required.");
-  }
-
-  const referralsQuery = query(
-    referralsCollection,
-    where("status", "==", cleanStatus),
-    orderBy("createdAt", "desc")
-  );
-
-  const snapshot = await getDocs(referralsQuery);
-
-  return snapshot.docs.map((item) => ({
-    id: item.id,
-    ...item.data(),
-  }));
-}
-
-/**
- * Get referrals by admin status.
- *
- * Admin use only.
- */
-export async function getReferralsByAdminStatus(
-  adminStatus
-) {
-  const cleanStatus = cleanText(adminStatus);
-
-  if (!cleanStatus) {
-    throw new Error(
-      "Referral admin status is required."
-    );
-  }
-
-  const referralsQuery = query(
-    referralsCollection,
-    where("adminStatus", "==", cleanStatus),
-    orderBy("createdAt", "desc")
-  );
-
-  const snapshot = await getDocs(referralsQuery);
-
-  return snapshot.docs.map((item) => ({
-    id: item.id,
-    ...item.data(),
-  }));
-}
-
-/**
- * Update admin status.
- *
- * This should ideally be moved to a protected Cloud Function.
- */
-export async function updateReferralAdminStatus(
-  referralId,
-  adminStatus,
-  rejectionReason = []
-) {
-  const cleanReferralId = cleanText(referralId);
-  const cleanStatus = cleanText(adminStatus);
-
-  if (!cleanReferralId) {
-    throw new Error("Referral ID is required.");
-  }
-
-  if (!cleanStatus) {
-    throw new Error(
-      "Referral admin status is required."
-    );
-  }
-
-  const updates = {
-    adminStatus: cleanStatus,
-    updatedAt: serverTimestamp(),
-  };
-
-  if (cleanStatus === "approved") {
-    updates.approvedAt = serverTimestamp();
-  }
-
-  if (cleanStatus === "rejected") {
-    updates.rejectedAt = serverTimestamp();
-    updates.rejectionReason = Array.isArray(
-      rejectionReason
+    where(
+      "referrerId",
+      "==",
+      ownerId
     )
-      ? rejectionReason
-      : [cleanText(rejectionReason)];
-  }
-
-  await updateDoc(
-    getReferralRef(cleanReferralId),
-    updates
   );
 
-  return {
-    success: true,
-    message:
-      "Referral admin status updated successfully.",
-  };
+  const snapshot =
+    await getDocs(
+      referralsQuery
+    );
+
+  return snapshot.docs
+    .map((item) => ({
+      id: item.id,
+      ...item.data(),
+    }))
+    .sort((a, b) => {
+      const first =
+        a.createdAt?.seconds || 0;
+
+      const second =
+        b.createdAt?.seconds || 0;
+
+      return second - first;
+    });
 }
 
-/**
- * Update onboarding status.
- */
-export async function updateReferralOnboardingStatus(
+export async function updateReferralStatus(
   referralId,
-  onboardingStatus
+  status,
+  extraData = {}
 ) {
-  const cleanReferralId = cleanText(referralId);
-  const cleanStatus = cleanText(onboardingStatus);
-
-  if (!cleanReferralId) {
-    throw new Error("Referral ID is required.");
-  }
-
-  if (!cleanStatus) {
-    throw new Error(
-      "Onboarding status is required."
-    );
-  }
+  const referralRef =
+    getReferralRef(referralId);
 
   await updateDoc(
-    getReferralRef(cleanReferralId),
+    referralRef,
     {
-      onboardingStatus: cleanStatus,
+      status,
+      ...extraData,
       updatedAt: serverTimestamp(),
     }
   );
-
-  return {
-    success: true,
-    message:
-      "Referral onboarding status updated successfully.",
-  };
 }
-
-/**
- * Admin statistics.
- */
-export async function getReferralStats() {
-  const snapshot = await getDocs(
-    referralsCollection
-  );
-
-  const referrals = snapshot.docs.map((item) =>
-    item.data()
-  );
-
-  return {
-    totalReferrals: referrals.length,
-
-    pendingReferrals: referrals.filter(
-      (item) => item.status === "pending"
-    ).length,
-
-    approvedReferrals: referrals.filter(
-      (item) => item.adminStatus === "approved"
-    ).length,
-
-    rejectedReferrals: referrals.filter(
-      (item) => item.adminStatus === "rejected"
-    ).length,
-
-    verifiedReferrals: referrals.filter(
-      (item) =>
-        item.verificationStatus === "verified"
-    ).length,
-
-    completedOnboarding: referrals.filter(
-      (item) =>
-        item.onboardingStatus === "completed"
-    ).length,
-
-    totalRewards: referrals.reduce(
-      (total, item) =>
-        total + Number(item.reward || 0),
-      0
-    ),
-
-    paidRewards: referrals
-      .filter(
-        (item) => item.paymentStatus === "paid"
-      )
-      .reduce(
-        (total, item) =>
-          total + Number(item.reward || 0),
-        0
-      ),
-  };
-}
-
-export default {
-  getReferralRef,
-  createReferral,
-  getReferralById,
-  getAllReferrals,
-  getReferralsByReferrerId,
-  getReferralsByStatus,
-  getReferralsByAdminStatus,
-  updateReferralAdminStatus,
-  updateReferralOnboardingStatus,
-  getReferralStats,
-};
