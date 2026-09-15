@@ -262,7 +262,7 @@ export default function ReferProvider() {
         referrerUid: guestOwnerId,
         referrerUserId: guestOwnerId,
 
-        referrerName: "Website User",
+        referrerName: "Velzo User",
         referrerPhone: "",
         referrerEmail: "",
 

@@ -60,9 +60,9 @@ export function AuthProvider({ children }) {
       id: guestId,
       userId: guestId,
 
-      name: "Website User",
-      fullName: "Website User",
-      displayName: "Website User",
+      name: "Velzo User",
+      fullName: "Velzo User",
+      displayName: "Velzo User",
 
       phone: "",
       phoneNumber: "",

@@ -862,7 +862,7 @@ function Dashboard() {
             </span>
 
             <h1>
-              Welcome back, {userName} 👋
+              Welcome back, Velzo User 👋
             </h1>
 
             <p>
@@ -905,12 +905,12 @@ function Dashboard() {
               }
             >
               <div className="profile-avatar">
-                {userInitial}
+                V
               </div>
 
               <div className="profile-info">
                 <strong>
-                  {userName}
+                  Velzo User
                 </strong>
 
                 <span>
