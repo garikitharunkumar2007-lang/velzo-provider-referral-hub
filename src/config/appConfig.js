@@ -60,6 +60,8 @@ export const APP_CONFIG = {
     "tadepalliguedem_mechanics",
     "union_master_list",
     "verifiedProviders",
+    "tanuku_mechanics",
+    "tanuku_plumbers",
   ],
 
   firestoreCollections: {
