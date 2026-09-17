@@ -4,39 +4,51 @@ import {
   collection,
   doc,
   getDocs,
-  limit,
-  query,
   serverTimestamp,
   updateDoc,
-  where,
 } from "firebase/firestore";
 
 import { db } from "./firebaseConfig";
 import APP_CONFIG from "../config/appConfig";
 
-const VERIFIED_PROVIDERS_COLLECTION =
-  APP_CONFIG.firestoreCollections.verifiedProviders;
-
 const REFERRALS_COLLECTION =
   APP_CONFIG.firestoreCollections.referrals;
 
-/**
- * Converts any phone number format into a comparable 10-digit number.
- *
- * Examples:
- * 9494314913
- * +91 9494314913
- * +919494314913
- *
- * All become:
- * 9494314913
- */
+const PROVIDER_CHECK_COLLECTIONS = [
+  "tadepalligudem_mechanics",
+  "tanuku_plumbers",
+  "tanuku_mechanics",
+  "union_master_list",
+  "verifiedProviders",
+];
+
+const PHONE_FIELD_NAMES = [
+  "phone",
+  "phoneNumber",
+  "providerPhone",
+  "providerMobile",
+  "mobile",
+  "mobileNumber",
+  "mobileNo",
+  "phoneNo",
+  "contactNumber",
+  "contactPhone",
+  "whatsappNumber",
+  "whatsapp",
+];
+
 export function normalizePhoneNumber(value) {
-  if (value === null || value === undefined) {
+  if (
+    value === null ||
+    value === undefined
+  ) {
     return "";
   }
 
-  const digits = String(value).replace(/\D/g, "");
+  const digits = String(value).replace(
+    /\D/g,
+    ""
+  );
 
   if (digits.length >= 10) {
     return digits.slice(-10);
@@ -45,80 +57,161 @@ export function normalizePhoneNumber(value) {
   return digits;
 }
 
-/**
- * Finds an existing provider inside verifiedProviders
- * using the provider mobile number.
- */
-export async function findVerifiedProviderByPhone(phoneNumber) {
-  const normalizedPhone = normalizePhoneNumber(phoneNumber);
-
-  if (!normalizedPhone || normalizedPhone.length !== 10) {
-    return null;
+function getPossiblePhoneValues(
+  data
+) {
+  if (
+    !data ||
+    typeof data !== "object"
+  ) {
+    return [];
   }
 
-  const verifiedProvidersRef = collection(
-    db,
-    VERIFIED_PROVIDERS_COLLECTION
-  );
+  const values = [];
 
-  /*
-   * We check both possible fields because older documents
-   * may contain phoneNumber and newer documents may contain
-   * providerPhone.
-   */
-  const phoneNumberQuery = query(
-    verifiedProvidersRef,
-    where("phoneNumber", "==", normalizedPhone),
-    limit(1)
-  );
-
-  const providerPhoneQuery = query(
-    verifiedProvidersRef,
-    where("providerPhone", "==", normalizedPhone),
-    limit(1)
-  );
-
-  const [phoneNumberSnapshot, providerPhoneSnapshot] =
-    await Promise.all([
-      getDocs(phoneNumberQuery),
-      getDocs(providerPhoneQuery),
-    ]);
-
-  if (!phoneNumberSnapshot.empty) {
-    const providerDoc = phoneNumberSnapshot.docs[0];
-
-    return {
-      id: providerDoc.id,
-      ...providerDoc.data(),
-    };
+  for (const fieldName of PHONE_FIELD_NAMES) {
+    if (
+      data[fieldName] !== undefined &&
+      data[fieldName] !== null
+    ) {
+      values.push(data[fieldName]);
+    }
   }
 
-  if (!providerPhoneSnapshot.empty) {
-    const providerDoc = providerPhoneSnapshot.docs[0];
+  for (const value of Object.values(data)) {
+    if (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    ) {
+      values.push(
+        ...getPossiblePhoneValues(value)
+      );
+    }
+  }
 
-    return {
-      id: providerDoc.id,
-      ...providerDoc.data(),
-    };
+  return values;
+}
+
+function documentContainsPhone(
+  documentData,
+  normalizedPhone
+) {
+  const phoneValues =
+    getPossiblePhoneValues(
+      documentData
+    );
+
+  return phoneValues.some(
+    (value) =>
+      normalizePhoneNumber(value) ===
+      normalizedPhone
+  );
+}
+
+async function findPhoneInCollection(
+  collectionName,
+  normalizedPhone
+) {
+  const collectionReference =
+    collection(
+      db,
+      collectionName
+    );
+
+  const snapshot =
+    await getDocs(
+      collectionReference
+    );
+
+  for (const providerDocument of snapshot.docs) {
+    const providerData =
+      providerDocument.data();
+
+    if (
+      documentContainsPhone(
+        providerData,
+        normalizedPhone
+      )
+    ) {
+      return {
+        id: providerDocument.id,
+        collectionName,
+        ...providerData,
+      };
+    }
   }
 
   return null;
 }
 
 /**
- * Automatically rejects a referral when the same provider
- * already exists in verifiedProviders.
+ * Checks all required provider collections:
+ *
+ * 1. tadepalligudem_mechanics
+ * 2. tanuku_plumbers
+ * 3. tanuku_mechanics
+ * 4. union_master_list
+ * 5. verifiedProviders
  */
+export async function findVerifiedProviderByPhone(
+  phoneNumber
+) {
+  const normalizedPhone =
+    normalizePhoneNumber(
+      phoneNumber
+    );
+
+  if (
+    normalizedPhone.length !== 10
+  ) {
+    return null;
+  }
+
+  for (const collectionName of PROVIDER_CHECK_COLLECTIONS) {
+    const existingProvider =
+      await findPhoneInCollection(
+        collectionName,
+        normalizedPhone
+      );
+
+    if (existingProvider) {
+      return existingProvider;
+    }
+  }
+
+  return null;
+}
+
+export async function checkProviderPhoneExists(
+  phoneNumber
+) {
+  const existingProvider =
+    await findVerifiedProviderByPhone(
+      phoneNumber
+    );
+
+  return {
+    isDuplicate:
+      Boolean(existingProvider),
+    existingProvider,
+  };
+}
+
 export async function rejectDuplicateReferral({
   referralId,
   providerPhone,
 }) {
   if (!referralId) {
-    throw new Error("Referral ID is required.");
+    throw new Error(
+      "Referral ID is required."
+    );
   }
 
   const existingProvider =
-    await findVerifiedProviderByPhone(providerPhone);
+    await findVerifiedProviderByPhone(
+      providerPhone
+    );
 
   if (!existingProvider) {
     return {
@@ -127,53 +220,84 @@ export async function rejectDuplicateReferral({
     };
   }
 
-  const referralRef = doc(
-    db,
-    REFERRALS_COLLECTION,
-    referralId
-  );
+  const referralReference =
+    doc(
+      db,
+      REFERRALS_COLLECTION,
+      referralId
+    );
 
-  const existingProviderName =
+  const providerName =
     existingProvider.providerName ||
+    existingProvider.fullName ||
     existingProvider.name ||
-    "Existing verified provider";
+    "Existing provider";
 
-  const normalizedPhone = normalizePhoneNumber(providerPhone);
+  const normalizedPhone =
+    normalizePhoneNumber(
+      providerPhone
+    );
 
-  await updateDoc(referralRef, {
-    status: "rejected",
-    currentStatus: "rejected",
-    adminStatus: "rejected",
-    verificationStatus: "rejected",
-    paymentStatus: "not_paid",
-    rewardStatus: "not_paid",
+  await updateDoc(
+    referralReference,
+    {
+      status: "rejected",
+      currentStatus: "rejected",
+      verificationStatus: "rejected",
+      adminStatus: "rejected",
+      onboardingStatus: "rejected",
 
-    rejectionReason:
-      "This provider already exists in verifiedProviders with the same mobile number.",
+      rewardStatus: "not_earned",
+      paymentStatus: "not_paid",
 
-    duplicateProviderId: existingProvider.id,
-    duplicateProviderName: existingProviderName,
-    duplicateProviderPhone: normalizedPhone,
+      rejectionReason:
+        "This mobile number already exists in VELZO provider records.",
 
-    isDuplicateProvider: true,
-    duplicateChecked: true,
-    duplicateCheckedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+      rejectionReasons: [
+        "Duplicate mobile number",
+        `Existing provider: ${providerName}`,
+      ],
+
+      matchedCollection:
+        existingProvider.collectionName,
+
+      matchedDocumentId:
+        existingProvider.id,
+
+      duplicateProviderId:
+        existingProvider.id,
+
+      duplicateProviderName:
+        providerName,
+
+      duplicateProviderPhone:
+        normalizedPhone,
+
+      duplicateProviderCollection:
+        existingProvider.collectionName,
+
+      isDuplicateProvider: true,
+      duplicateChecked: true,
+      duplicateCheckedAt:
+        serverTimestamp(),
+
+      updatedAt:
+        serverTimestamp(),
+    }
+  );
 
   return {
     isDuplicate: true,
     existingProvider: {
       id: existingProvider.id,
-      name: existingProviderName,
+      name: providerName,
       phoneNumber: normalizedPhone,
+      collectionName:
+        existingProvider.collectionName,
     },
   };
 }
 
-/**
- * Checks a referral without changing it.
- */
 export async function checkReferralForDuplicateProvider(
   referral
 ) {
@@ -192,11 +316,7 @@ export async function checkReferralForDuplicateProvider(
     referral.phone ||
     "";
 
-  const existingProvider =
-    await findVerifiedProviderByPhone(providerPhone);
-
-  return {
-    isDuplicate: Boolean(existingProvider),
-    existingProvider,
-  };
+  return checkProviderPhoneExists(
+    providerPhone
+  );
 }
