@@ -17,13 +17,25 @@ import { db } from "../firebase/firebaseConfig";
 
 import {
   checkProviderPhoneExists,
+  normalizePhoneNumber,
 } from "../firebase/verifiedProviderService";
 
 const referralsCollection =
-  collection(db, "referrals");
+  collection(
+    db,
+    "referrals"
+  );
+
+/*
+|--------------------------------------------------------------------------
+| Helpers
+|--------------------------------------------------------------------------
+*/
 
 function cleanText(value) {
-  return String(value ?? "").trim();
+  return String(
+    value ?? ""
+  ).trim();
 }
 
 function getReferralRef(
@@ -42,6 +54,12 @@ function getReferralRef(
   );
 }
 
+/*
+|--------------------------------------------------------------------------
+| Create referral
+|--------------------------------------------------------------------------
+*/
+
 export async function createReferral({
   referrerId = "",
   referrerUid = "",
@@ -51,11 +69,18 @@ export async function createReferral({
   referrerPhone = "",
 
   providerName = "",
+  fullName = "",
   phone = "",
+  providerPhone = "",
+
   address = "",
   role = "",
   unionId = "",
+  unionLabourId = "",
+
   upiNumber = "",
+  paymentNumber = "",
+
   consent = false,
 }) {
   const referralOwnerId =
@@ -67,12 +92,19 @@ export async function createReferral({
 
   const cleanProviderName =
     cleanText(
-      providerName
+      providerName ||
+        fullName
+    );
+
+  const rawPhone =
+    cleanText(
+      phone ||
+        providerPhone
     );
 
   const cleanPhone =
-    cleanText(
-      phone
+    normalizePhoneNumber(
+      rawPhone
     );
 
   const cleanAddress =
@@ -87,13 +119,21 @@ export async function createReferral({
 
   const cleanUnionId =
     cleanText(
-      unionId
+      unionId ||
+        unionLabourId
     );
 
   const cleanUpiNumber =
     cleanText(
-      upiNumber
+      upiNumber ||
+        paymentNumber
     );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Form validation
+  |--------------------------------------------------------------------------
+  */
 
   if (!referralOwnerId) {
     throw new Error(
@@ -108,12 +148,13 @@ export async function createReferral({
   }
 
   if (
+    cleanPhone.length !== 10 ||
     !/^[6-9]\d{9}$/.test(
       cleanPhone
     )
   ) {
     throw new Error(
-      "Please enter a valid 10-digit phone number."
+      "Please enter a valid 10-digit Indian phone number."
     );
   }
 
@@ -142,20 +183,39 @@ export async function createReferral({
   }
 
   /*
-   * Duplicate check is performed BEFORE
-   * creating the referral document.
-   *
-   * Collections checked:
-   * - tadepalligudem_mechanics
-   * - tanuku_plumbers
-   * - tanuku_mechanics
-   * - union_master_list
-   * - verifiedProviders
-   */
-  const duplicateResult =
-    await checkProviderPhoneExists(
-      cleanPhone
+  |--------------------------------------------------------------------------
+  | IMPORTANT DUPLICATE CHECK
+  |--------------------------------------------------------------------------
+  |
+  | Checks:
+  |
+  | 1. tadepalligudem_mechanics
+  | 2. tanuku_plumbers
+  | 3. tanuku_mechanics
+  | 4. union_master_list
+  | 5. verifiedProviders
+  |
+  | This happens BEFORE addDoc().
+  |--------------------------------------------------------------------------
+  */
+
+  let duplicateResult;
+
+  try {
+    duplicateResult =
+      await checkProviderPhoneExists(
+        cleanPhone
+      );
+  } catch (error) {
+    console.error(
+      "Provider duplicate check failed:",
+      error
     );
+
+    throw new Error(
+      "Unable to verify this provider phone number. Please try again."
+    );
+  }
 
   const isDuplicate =
     duplicateResult.isDuplicate;
@@ -168,6 +228,23 @@ export async function createReferral({
     existingProvider?.fullName ||
     existingProvider?.name ||
     "Existing provider";
+
+  const existingProviderCollection =
+    existingProvider?.collectionName ||
+    "";
+
+  const existingProviderId =
+    existingProvider?.id ||
+    "";
+
+  const duplicateReason =
+    "This provider mobile number already exists in VELZO provider records.";
+
+  /*
+  |--------------------------------------------------------------------------
+  | Status decision
+  |--------------------------------------------------------------------------
+  */
 
   const initialStatus =
     isDuplicate
@@ -188,6 +265,12 @@ export async function createReferral({
     isDuplicate
       ? "rejected"
       : "pending";
+
+  /*
+  |--------------------------------------------------------------------------
+  | Referral document
+  |--------------------------------------------------------------------------
+  */
 
   const referralData = {
     referrerId:
@@ -223,22 +306,49 @@ export async function createReferral({
     phone:
       cleanPhone,
 
+    providerPhone:
+      cleanPhone,
+
+    phoneNumber:
+      cleanPhone,
+
+    mobile:
+      cleanPhone,
+
     address:
       cleanAddress,
 
     role:
       cleanRole,
 
+    service:
+      cleanRole,
+
     unionId:
       cleanUnionId,
 
+    unionLabourId:
+      cleanUnionId,
+
     upiNumber:
+      cleanUpiNumber,
+
+    paymentNumber:
       cleanUpiNumber,
 
     consent: true,
 
     consentAt:
       serverTimestamp(),
+
+    source:
+      "website",
+
+    /*
+    |--------------------------------------------------------------------------
+    | Required status fields
+    |--------------------------------------------------------------------------
+    */
 
     status:
       initialStatus,
@@ -255,35 +365,32 @@ export async function createReferral({
     onboardingStatus:
       initialOnboardingStatus,
 
-    reward: 0,
+    /*
+    |--------------------------------------------------------------------------
+    | Duplicate metadata
+    |--------------------------------------------------------------------------
+    */
 
-    rewardAmount: 0,
+    duplicateChecked:
+      true,
 
-    rewardEarned: 0,
+    duplicateCheckedAt:
+      serverTimestamp(),
 
-    referralReward: 0,
-
-    paymentAmount: 0,
-
-    rewardStatus:
-      isDuplicate
-        ? "not_earned"
-        : "not_earned",
-
-    paymentStatus:
-      "not_paid",
+    isDuplicateProvider:
+      isDuplicate,
 
     matchedCollection:
-      existingProvider?.collectionName ||
+      existingProviderCollection ||
       null,
 
     matchedDocumentId:
-      existingProvider?.id ||
+      existingProviderId ||
       null,
 
     duplicateProviderId:
-      existingProvider?.id ||
-      "",
+      existingProviderId ||
+      null,
 
     duplicateProviderName:
       isDuplicate
@@ -296,32 +403,62 @@ export async function createReferral({
         : "",
 
     duplicateProviderCollection:
-      existingProvider?.collectionName ||
-      "",
-
-    isDuplicateProvider:
-      isDuplicate,
-
-    duplicateChecked:
-      true,
-
-    duplicateCheckedAt:
-      serverTimestamp(),
+      isDuplicate
+        ? existingProviderCollection
+        : "",
 
     rejectionReason:
       isDuplicate
-        ? "This mobile number already exists in VELZO provider records."
+        ? duplicateReason
         : "",
 
     rejectionReasons:
       isDuplicate
         ? [
             "Duplicate mobile number",
+            duplicateReason,
             `Existing provider: ${existingProviderName}`,
+            `Matched collection: ${existingProviderCollection}`,
           ]
         : [],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Reward fields
+    |--------------------------------------------------------------------------
+    */
+
+    reward:
+      0,
+
+    rewardAmount:
+      0,
+
+    rewardEarned:
+      0,
+
+    referralReward:
+      0,
+
+    paymentAmount:
+      0,
+
+    rewardStatus:
+      "not_earned",
+
+    paymentStatus:
+      "not_paid",
+
+    /*
+    |--------------------------------------------------------------------------
+    | Timestamps
+    |--------------------------------------------------------------------------
+    */
+
     createdAt:
+      serverTimestamp(),
+
+    submittedAt:
       serverTimestamp(),
 
     updatedAt:
@@ -334,11 +471,19 @@ export async function createReferral({
       null,
 
     rejectedAt:
-      null,
+      isDuplicate
+        ? serverTimestamp()
+        : null,
 
     paidAt:
       null,
   };
+
+  /*
+  |--------------------------------------------------------------------------
+  | Always save the referral with the correct status
+  |--------------------------------------------------------------------------
+  */
 
   const referralDocument =
     await addDoc(
@@ -346,8 +491,46 @@ export async function createReferral({
       referralData
     );
 
-  return referralDocument.id;
+  return {
+    referralId:
+      referralDocument.id,
+
+    id:
+      referralDocument.id,
+
+    status:
+      initialStatus,
+
+    currentStatus:
+      initialStatus,
+
+    verificationStatus:
+      initialVerificationStatus,
+
+    adminStatus:
+      initialAdminStatus,
+
+    isDuplicateProvider:
+      isDuplicate,
+
+    duplicateChecked:
+      true,
+
+    existingProvider:
+      existingProvider || null,
+
+    message:
+      isDuplicate
+        ? "Referral rejected because this provider mobile number already exists."
+        : "Referral submitted successfully and is pending verification.",
+  };
 }
+
+/*
+|--------------------------------------------------------------------------
+| Submit referral
+|--------------------------------------------------------------------------
+*/
 
 export async function submitReferral(
   referralData
@@ -356,6 +539,12 @@ export async function submitReferral(
     referralData
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Read one referral
+|--------------------------------------------------------------------------
+*/
 
 export async function getReferralById(
   referralId
@@ -367,15 +556,25 @@ export async function getReferralById(
       )
     );
 
-  if (!snapshot.exists()) {
+  if (
+    !snapshot.exists()
+  ) {
     return null;
   }
 
   return {
-    id: snapshot.id,
+    id:
+      snapshot.id,
+
     ...snapshot.data(),
   };
 }
+
+/*
+|--------------------------------------------------------------------------
+| Read all referrals
+|--------------------------------------------------------------------------
+*/
 
 export async function getAllReferrals() {
   const referralsQuery =
@@ -394,11 +593,19 @@ export async function getAllReferrals() {
 
   return snapshot.docs.map(
     (item) => ({
-      id: item.id,
+      id:
+        item.id,
+
       ...item.data(),
     })
   );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Read referrals by referrer
+|--------------------------------------------------------------------------
+*/
 
 export async function getReferralsByReferrerId(
   referrerId
@@ -430,42 +637,166 @@ export async function getReferralsByReferrerId(
   return snapshot.docs
     .map(
       (item) => ({
-        id: item.id,
+        id:
+          item.id,
+
         ...item.data(),
       })
     )
     .sort(
-      (firstReferral, secondReferral) => {
-        const first =
-          firstReferral.createdAt?.seconds ||
+      (first, second) => {
+        const firstTime =
+          first.createdAt?.seconds ||
           0;
 
-        const second =
-          secondReferral.createdAt?.seconds ||
+        const secondTime =
+          second.createdAt?.seconds ||
           0;
 
-        return second - first;
+        return (
+          secondTime -
+          firstTime
+        );
       }
     );
 }
+
+/*
+|--------------------------------------------------------------------------
+| Read referrals by status
+|--------------------------------------------------------------------------
+*/
+
+export async function getReferralsByStatus(
+  status
+) {
+  const cleanStatus =
+    cleanText(
+      status
+    );
+
+  if (!cleanStatus) {
+    return [];
+  }
+
+  const referralsQuery =
+    query(
+      referralsCollection,
+      where(
+        "status",
+        "==",
+        cleanStatus
+      )
+    );
+
+  const snapshot =
+    await getDocs(
+      referralsQuery
+    );
+
+  return snapshot.docs.map(
+    (item) => ({
+      id:
+        item.id,
+
+      ...item.data(),
+    })
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Update referral status
+|--------------------------------------------------------------------------
+*/
 
 export async function updateReferralStatus(
   referralId,
   status,
   extraData = {}
 ) {
-  const referralReference =
-    getReferralRef(
-      referralId
+  if (!referralId) {
+    throw new Error(
+      "Referral ID is required."
+    );
+  }
+
+  if (!status) {
+    throw new Error(
+      "Referral status is required."
+    );
+  }
+
+  const cleanStatus =
+    cleanText(
+      status
     );
 
+  const updates = {
+    status:
+      cleanStatus,
+
+    currentStatus:
+      cleanStatus,
+
+    updatedAt:
+      serverTimestamp(),
+
+    ...extraData,
+  };
+
+  if (
+    cleanStatus ===
+    "rejected"
+  ) {
+    updates.verificationStatus =
+      "rejected";
+
+    updates.adminStatus =
+      "rejected";
+
+    updates.rejectedAt =
+      serverTimestamp();
+  }
+
+  if (
+    cleanStatus ===
+    "approved" ||
+    cleanStatus ===
+    "successful"
+  ) {
+    updates.verificationStatus =
+      "verified";
+
+    updates.adminStatus =
+      "approved";
+
+    updates.approvedAt =
+      serverTimestamp();
+  }
+
   await updateDoc(
-    referralReference,
-    {
-      status,
-      ...extraData,
-      updatedAt:
-        serverTimestamp(),
-    }
+    getReferralRef(
+      referralId
+    ),
+    updates
   );
+
+  return {
+    success:
+      true,
+
+    status:
+      cleanStatus,
+  };
 }
+
+export default {
+  createReferral,
+  submitReferral,
+  getReferralById,
+  getAllReferrals,
+  getReferralsByReferrerId,
+  getReferralsByStatus,
+  updateReferralStatus,
+};
