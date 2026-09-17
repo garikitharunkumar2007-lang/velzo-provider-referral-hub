@@ -291,14 +291,24 @@ export default function ReferProvider() {
         source: "website",
         submittedAt: new Date(),
       };
-
+     const submissionResult =
       await submitReferral(
-        referralPayload
-      );
+    referralPayload
+  );
 
-      setSuccess(
-        "Provider referral submitted successfully. It is waiting for verification."
-      );
+if (
+  submissionResult?.isDuplicateProvider ||
+  submissionResult?.status ===
+    "rejected"
+) {
+  setSuccess(
+    "Referral rejected. This provider's mobile number already exists in VELZO records."
+  );
+} else {
+  setSuccess(
+    "Provider referral submitted successfully. It is waiting for verification."
+  );
+}
 
       setFormData({
         ...INITIAL_FORM_DATA,

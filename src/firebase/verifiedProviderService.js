@@ -2,19 +2,18 @@
 
 import {
   collection,
-  doc,
   getDocs,
-  serverTimestamp,
-  updateDoc,
 } from "firebase/firestore";
 
 import { db } from "./firebaseConfig";
-import APP_CONFIG from "../config/appConfig";
 
-const REFERRALS_COLLECTION =
-  APP_CONFIG.firestoreCollections.referrals;
+/*
+|--------------------------------------------------------------------------
+| Collections that must be checked before accepting a referral
+|--------------------------------------------------------------------------
+*/
 
-const PROVIDER_CHECK_COLLECTIONS = [
+export const PROVIDER_COLLECTIONS_TO_CHECK = [
   "tadepalligudem_mechanics",
   "tanuku_plumbers",
   "tanuku_mechanics",
@@ -22,20 +21,57 @@ const PROVIDER_CHECK_COLLECTIONS = [
   "verifiedProviders",
 ];
 
-const PHONE_FIELD_NAMES = [
+/*
+|--------------------------------------------------------------------------
+| Phone field names
+|--------------------------------------------------------------------------
+*/
+
+const PHONE_FIELD_NAMES = new Set([
   "phone",
-  "phoneNumber",
-  "providerPhone",
-  "providerMobile",
+  "phonenumber",
+  "phone_number",
+  "phone-no",
+  "phoneno",
+  "phone_no",
+
   "mobile",
-  "mobileNumber",
-  "mobileNo",
-  "phoneNo",
-  "contactNumber",
-  "contactPhone",
-  "whatsappNumber",
+  "mobilenumber",
+  "mobile_number",
+  "mobileno",
+  "mobile_no",
+
+  "contact",
+  "contactnumber",
+  "contact_number",
+  "contactno",
+  "contact_no",
+
+  "providerphone",
+  "provider_phone",
+  "providermobile",
+  "provider_mobile",
+
   "whatsapp",
-];
+  "whatsappnumber",
+  "whatsapp_number",
+
+  "telephone",
+  "telephone_number",
+]);
+
+/*
+|--------------------------------------------------------------------------
+| Normalize phone number
+|--------------------------------------------------------------------------
+|
+| Supports:
+| 9966278866
+| +919966278866
+| +91 9966278866
+| 99662-78866
+|
+*/
 
 export function normalizePhoneNumber(value) {
   if (
@@ -50,70 +86,190 @@ export function normalizePhoneNumber(value) {
     ""
   );
 
-  if (digits.length >= 10) {
+  if (!digits) {
+    return "";
+  }
+
+  // Indian number with country code
+  if (
+    digits.length === 12 &&
+    digits.startsWith("91")
+  ) {
+    return digits.slice(2);
+  }
+
+  // Any longer number: use the last 10 digits
+  if (digits.length > 10) {
     return digits.slice(-10);
   }
 
   return digits;
 }
 
-function getPossiblePhoneValues(
-  data
-) {
+/*
+|--------------------------------------------------------------------------
+| Normalize field name
+|--------------------------------------------------------------------------
+*/
+
+function normalizeFieldName(fieldName) {
+  return String(fieldName || "")
+    .toLowerCase()
+    .replace(/[\s_-]/g, "");
+}
+
+/*
+|--------------------------------------------------------------------------
+| Detect possible phone field
+|--------------------------------------------------------------------------
+*/
+
+function isPhoneField(fieldName) {
+  const normalizedName =
+    normalizeFieldName(
+      fieldName
+    );
+
   if (
-    !data ||
-    typeof data !== "object"
+    PHONE_FIELD_NAMES.has(
+      fieldName
+    )
   ) {
-    return [];
+    return true;
   }
 
-  const values = [];
+  if (
+    PHONE_FIELD_NAMES.has(
+      normalizedName
+    )
+  ) {
+    return true;
+  }
 
-  for (const fieldName of PHONE_FIELD_NAMES) {
+  /*
+   * Also support unknown names such as:
+   * alternatePhone
+   * emergencyMobile
+   * contactMobileNumber
+   */
+
+  return (
+    normalizedName.includes("phone") ||
+    normalizedName.includes("mobile") ||
+    normalizedName.includes("contactnumber") ||
+    normalizedName.includes("whatsapp") ||
+    normalizedName.includes("telephone")
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Extract phone values from nested Firestore data
+|--------------------------------------------------------------------------
+*/
+
+function collectPhoneValues(
+  value,
+  fieldName = ""
+) {
+  const phoneValues = [];
+
+  if (
+    value === null ||
+    value === undefined
+  ) {
+    return phoneValues;
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number"
+  ) {
     if (
-      data[fieldName] !== undefined &&
-      data[fieldName] !== null
+      isPhoneField(fieldName)
     ) {
-      values.push(data[fieldName]);
+      phoneValues.push(
+        value
+      );
     }
+
+    return phoneValues;
   }
 
-  for (const value of Object.values(data)) {
-    if (
-      value &&
-      typeof value === "object" &&
-      !Array.isArray(value)
-    ) {
-      values.push(
-        ...getPossiblePhoneValues(value)
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      phoneValues.push(
+        ...collectPhoneValues(
+          item,
+          fieldName
+        )
+      );
+    }
+
+    return phoneValues;
+  }
+
+  if (
+    typeof value === "object"
+  ) {
+    for (const [
+      nestedFieldName,
+      nestedValue,
+    ] of Object.entries(value)) {
+      phoneValues.push(
+        ...collectPhoneValues(
+          nestedValue,
+          nestedFieldName
+        )
       );
     }
   }
 
-  return values;
+  return phoneValues;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Check one provider document
+|--------------------------------------------------------------------------
+*/
 
 function documentContainsPhone(
   documentData,
-  normalizedPhone
+  targetPhone
 ) {
   const phoneValues =
-    getPossiblePhoneValues(
+    collectPhoneValues(
       documentData
     );
 
   return phoneValues.some(
-    (value) =>
-      normalizePhoneNumber(value) ===
-      normalizedPhone
+    (phoneValue) => {
+      const normalizedValue =
+        normalizePhoneNumber(
+          phoneValue
+        );
+
+      return (
+        normalizedValue ===
+          targetPhone &&
+        normalizedValue.length === 10
+      );
+    }
   );
 }
 
-async function findPhoneInCollection(
+/*
+|--------------------------------------------------------------------------
+| Search one collection
+|--------------------------------------------------------------------------
+*/
+
+async function searchCollectionForPhone(
   collectionName,
-  normalizedPhone
+  targetPhone
 ) {
-  const collectionReference =
+  const providerCollection =
     collection(
       db,
       collectionName
@@ -121,17 +277,19 @@ async function findPhoneInCollection(
 
   const snapshot =
     await getDocs(
-      collectionReference
+      providerCollection
     );
 
-  for (const providerDocument of snapshot.docs) {
+  for (
+    const providerDocument of snapshot.docs
+  ) {
     const providerData =
       providerDocument.data();
 
     if (
       documentContainsPhone(
         providerData,
-        normalizedPhone
+        targetPhone
       )
     ) {
       return {
@@ -145,16 +303,53 @@ async function findPhoneInCollection(
   return null;
 }
 
-/**
- * Checks all required provider collections:
- *
- * 1. tadepalligudem_mechanics
- * 2. tanuku_plumbers
- * 3. tanuku_mechanics
- * 4. union_master_list
- * 5. verifiedProviders
- */
-export async function findVerifiedProviderByPhone(
+/*
+|--------------------------------------------------------------------------
+| Find provider by phone in every required collection
+|--------------------------------------------------------------------------
+*/
+
+export async function findProviderByPhone(
+  phoneNumber
+) {
+  const targetPhone =
+    normalizePhoneNumber(
+      phoneNumber
+    );
+
+  if (
+    targetPhone.length !== 10
+  ) {
+    return null;
+  }
+
+  for (
+    const collectionName of
+      PROVIDER_COLLECTIONS_TO_CHECK
+  ) {
+    const existingProvider =
+      await searchCollectionForPhone(
+        collectionName,
+        targetPhone
+      );
+
+    if (
+      existingProvider
+    ) {
+      return existingProvider;
+    }
+  }
+
+  return null;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Public duplicate checker
+|--------------------------------------------------------------------------
+*/
+
+export async function checkProviderPhoneExists(
   phoneNumber
 ) {
   const normalizedPhone =
@@ -165,158 +360,41 @@ export async function findVerifiedProviderByPhone(
   if (
     normalizedPhone.length !== 10
   ) {
-    return null;
+    return {
+      isDuplicate: false,
+      existingProvider: null,
+      normalizedPhone,
+    };
   }
 
-  for (const collectionName of PROVIDER_CHECK_COLLECTIONS) {
-    const existingProvider =
-      await findPhoneInCollection(
-        collectionName,
-        normalizedPhone
-      );
-
-    if (existingProvider) {
-      return existingProvider;
-    }
-  }
-
-  return null;
-}
-
-export async function checkProviderPhoneExists(
-  phoneNumber
-) {
   const existingProvider =
-    await findVerifiedProviderByPhone(
-      phoneNumber
+    await findProviderByPhone(
+      normalizedPhone
     );
 
   return {
     isDuplicate:
-      Boolean(existingProvider),
+      Boolean(
+        existingProvider
+      ),
+
     existingProvider,
+
+    normalizedPhone,
   };
 }
 
-export async function rejectDuplicateReferral({
-  referralId,
-  providerPhone,
-}) {
-  if (!referralId) {
-    throw new Error(
-      "Referral ID is required."
-    );
-  }
-
-  const existingProvider =
-    await findVerifiedProviderByPhone(
-      providerPhone
-    );
-
-  if (!existingProvider) {
-    return {
-      isDuplicate: false,
-      existingProvider: null,
-    };
-  }
-
-  const referralReference =
-    doc(
-      db,
-      REFERRALS_COLLECTION,
-      referralId
-    );
-
-  const providerName =
-    existingProvider.providerName ||
-    existingProvider.fullName ||
-    existingProvider.name ||
-    "Existing provider";
-
-  const normalizedPhone =
-    normalizePhoneNumber(
-      providerPhone
-    );
-
-  await updateDoc(
-    referralReference,
-    {
-      status: "rejected",
-      currentStatus: "rejected",
-      verificationStatus: "rejected",
-      adminStatus: "rejected",
-      onboardingStatus: "rejected",
-
-      rewardStatus: "not_earned",
-      paymentStatus: "not_paid",
-
-      rejectionReason:
-        "This mobile number already exists in VELZO provider records.",
-
-      rejectionReasons: [
-        "Duplicate mobile number",
-        `Existing provider: ${providerName}`,
-      ],
-
-      matchedCollection:
-        existingProvider.collectionName,
-
-      matchedDocumentId:
-        existingProvider.id,
-
-      duplicateProviderId:
-        existingProvider.id,
-
-      duplicateProviderName:
-        providerName,
-
-      duplicateProviderPhone:
-        normalizedPhone,
-
-      duplicateProviderCollection:
-        existingProvider.collectionName,
-
-      isDuplicateProvider: true,
-      duplicateChecked: true,
-      duplicateCheckedAt:
-        serverTimestamp(),
-
-      updatedAt:
-        serverTimestamp(),
-    }
-  );
-
-  return {
-    isDuplicate: true,
-    existingProvider: {
-      id: existingProvider.id,
-      name: providerName,
-      phoneNumber: normalizedPhone,
-      collectionName:
-        existingProvider.collectionName,
-    },
-  };
-}
-
-export async function checkReferralForDuplicateProvider(
-  referral
+export async function findVerifiedProviderByPhone(
+  phoneNumber
 ) {
-  if (!referral) {
-    return {
-      isDuplicate: false,
-      existingProvider: null,
-    };
-  }
-
-  const providerPhone =
-    referral.providerPhone ||
-    referral.phoneNumber ||
-    referral.providerMobile ||
-    referral.mobileNumber ||
-    referral.phone ||
-    "";
-
-  return checkProviderPhoneExists(
-    providerPhone
+  return findProviderByPhone(
+    phoneNumber
   );
 }
+
+export default {
+  normalizePhoneNumber,
+  findProviderByPhone,
+  findVerifiedProviderByPhone,
+  checkProviderPhoneExists,
+};
